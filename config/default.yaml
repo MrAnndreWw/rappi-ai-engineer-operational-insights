@@ -1,0 +1,29 @@
+project:
+  name: competitive-intel-mx
+  default_locale: es-MX
+  timezone: America/Mexico_City
+
+platforms:
+  enabled:
+    - rappi
+    - uber_eats
+    - didi_food
+
+outputs:
+  export_format: jsonl
+  encoding: utf-8
+
+scraping:
+  request_timeout_seconds: 30
+  max_retries: 2
+  delay_seconds: 2
+
+metrics:
+  collect:
+    - product_price
+    - delivery_fee
+    - service_fee
+    - estimated_delivery_minutes
+    - active_discounts
+    - availability
+    - total_checkout_price

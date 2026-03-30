@@ -1,0 +1,31 @@
+reference_products:
+  - id: burger_signature
+    names:
+      - "Big Mac"
+      - "Whopper"
+    category: burger_combo
+
+  - id: combo_medium
+    names:
+      - "Combo mediano"
+    category: fast_food_combo
+
+  - id: nuggets_standard
+    names:
+      - "Nuggets"
+    category: sides
+
+  - id: soda_500ml
+    names:
+      - "Coca-Cola 500ml"
+    category: beverage
+
+  - id: water_1l
+    names:
+      - "Agua 1L"
+    category: beverage
+
+  - id: diapers_brand
+    names:
+      - "Pañales marca reconocida"
+    category: retail
