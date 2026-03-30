@@ -1,0 +1,100 @@
+locations:
+  - id: cdmx_01
+    label: "Reforma Centro"
+    address_line: "Paseo de la Reforma 222"
+    zone_type: commercial_high
+
+  - id: cdmx_02
+    label: "Polanco"
+    address_line: "Av Presidente Masaryk 111"
+    zone_type: residential_high
+
+  - id: cdmx_03
+    label: "Benito Juarez"
+    address_line: "Av Universidad 1000"
+    zone_type: residential_mid
+
+  - id: cdmx_04
+    label: "Iztapalapa Zaragoza"
+    address_line: "Calzada Ignacio Zaragoza 3250"
+    zone_type: residential_low
+
+  - id: cdmx_05
+    label: "Santa Fe"
+    address_line: "Av Vasco de Quiroga 3800"
+    zone_type: commercial_high
+
+  - id: cdmx_06
+    label: "Insurgentes Sur"
+    address_line: "Insurgentes Sur 1602"
+    zone_type: commercial_mid
+
+  - id: cdmx_07
+    label: "Guadalupe Inn"
+    address_line: "Av Revolucion 1450"
+    zone_type: residential_mid
+
+  - id: cdmx_08
+    label: "Centro Historico"
+    address_line: "Eje Central Lazaro Cardenas 2"
+    zone_type: commercial_mid
+
+  - id: cdmx_09
+    label: "Tlahuac"
+    address_line: "Av Tlahuac 4740"
+    zone_type: residential_low
+
+  - id: cdmx_10
+    label: "Azcapotzalco"
+    address_line: "Av Aquiles Serdan 400"
+    zone_type: residential_mid
+
+  - id: cdmx_11
+    label: "Tlalpan Nativitas"
+    address_line: "Calzada de Tlalpan 938"
+    zone_type: residential_mid
+
+  - id: cdmx_12
+    label: "San Pedro Pinos"
+    address_line: "Av Patriotismo 229"
+    zone_type: residential_mid
+
+  - id: cdmx_13
+    label: "Coyoacan Norte"
+    address_line: "Av Division del Norte 3000"
+    zone_type: residential_mid
+
+  - id: cdmx_14
+    label: "Pedregal"
+    address_line: "Periferico Sur 4690"
+    zone_type: residential_high
+
+  - id: cdmx_15
+    label: "Xoco"
+    address_line: "Av Rio Churubusco 601"
+    zone_type: commercial_mid
+
+  - id: cdmx_16
+    label: "Vallejo"
+    address_line: "Av Central 300"
+    zone_type: industrial
+
+  - id: cdmx_17
+    label: "Iztapalapa Centro"
+    address_line: "Av Texcoco 100"
+    zone_type: residential_low
+
+  - id: cdmx_18
+    label: "Coyoacan Sur"
+    address_line: "Av Miguel Angel de Quevedo 1144"
+    zone_type: residential_mid
+
+  - id: cdmx_19
+    label: "San Jeronimo"
+    address_line: "Av San Jeronimo 630"
+    zone_type: residential_mid
+
+  - id: cdmx_20
+    label: "GAM Coyol"
+    address_line: "Av Eduardo Molina 6730"
+    zone_type: residential_low

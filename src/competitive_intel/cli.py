@@ -14,6 +14,9 @@ def main(argv: list[str] | None = None) -> int:
     p_scrape.add_argument("--dry-run", action="store_true")
     p_scrape.add_argument("--platform", type=str, default=None)
     p_scrape.add_argument("--headed", action="store_true")
+    p_scrape.add_argument("-v", "--verbose", action="store_true")
+    p_scrape.add_argument("--rappi-dump-pages", action="store_true")
+    p_scrape.add_argument("--max-locations", type=int, default=None, metavar="N")
 
     p_report = sub.add_parser("report")
     p_report.add_argument("--input", type=Path, default=None)
@@ -28,6 +31,9 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
             platform=args.platform,
             headed=args.headed,
+            verbose=args.verbose,
+            rappi_dump_pages=args.rappi_dump_pages,
+            max_locations=args.max_locations,
         )
 
     if args.command == "report":

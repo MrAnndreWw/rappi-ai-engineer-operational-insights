@@ -19,6 +19,18 @@ def main() -> None:
         action="store_true",
         help="Log DEBUG (más detalle además de tiempos INFO)",
     )
+    parser.add_argument(
+        "--rappi-dump-pages",
+        action="store_true",
+        help="Rappi: guardar HTML+PNG+meta por paso en data/debug/rappi_pages (optimizar flujo de dirección)",
+    )
+    parser.add_argument(
+        "--max-locations",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Solo las primeras N ubicaciones (útil con --rappi-dump-pages)",
+    )
     args = parser.parse_args()
     raise SystemExit(
         run_scrape_pipeline(
@@ -27,6 +39,8 @@ def main() -> None:
             platform=args.platform,
             headed=args.headed,
             verbose=args.verbose,
+            rappi_dump_pages=args.rappi_dump_pages,
+            max_locations=args.max_locations,
         )
     )
 

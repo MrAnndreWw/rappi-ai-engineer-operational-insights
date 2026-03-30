@@ -60,9 +60,16 @@ def run_scrape_pipeline(
     platform: str | None = None,
     headed: bool = False,
     verbose: bool = False,
+    rappi_dump_pages: bool = False,
+    max_locations: int | None = None,
 ) -> int:
     _configure_scrape_logging(verbose=verbose)
     settings = load_settings(config_dir)
+    if rappi_dump_pages:
+        scraping = settings.setdefault("scraping", {})
+        rcfg = scraping.setdefault("rappi", {})
+        rcfg["debug_page_dumps"] = True
+        _LOG.info("Rappi: volcado de página activo (HTML/PNG/meta en data/debug/rappi_pages o debug_page_dir)")
     base = _config_dir(config_dir)
     loc_file, locations = _load_locations(base)
     products = _load_products(base)
@@ -84,6 +91,10 @@ def run_scrape_pipeline(
     if not locations:
         print("No hay ubicaciones: crea config/locations.yaml (copia desde locations.template.yaml).")
         return 1
+
+    if max_locations is not None and max_locations > 0:
+        locations = locations[:max_locations]
+        _LOG.info("Limitando ubicaciones a max_locations=%s", max_locations)
 
     try:
         from playwright.sync_api import sync_playwright

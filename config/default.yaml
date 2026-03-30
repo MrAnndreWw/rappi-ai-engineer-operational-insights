@@ -23,6 +23,9 @@ scraping:
   navigation_timeout_ms: 45000
   headless: true
   rappi:
+    # Volcar HTML + PNG + .meta.json por paso (ver data/debug/rappi_pages/). Activar también con --rappi-dump-pages.
+    debug_page_dumps: false
+    debug_page_dir: null # null = data/debug/rappi_pages
     menu_items_limit: 10
     # Pausa entre cadenas (rate limiting); bajar con cuidado si Rappi limita requests.
     between_chains_seconds: 4
