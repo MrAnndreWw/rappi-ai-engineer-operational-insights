@@ -41,7 +41,7 @@ Detalle ampliado: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | Ruta | Propósito |
 |------|-----------|
 | `config/default.yaml` | Plataformas, métricas objetivo, timeouts, delays |
-| `config/locations.template.yaml` | Plantilla para 20–50 ubicaciones documentadas |
+| `config/locations.template.yaml` / `locations.example.yaml` | Plantilla y ejemplo de ubicaciones |
 | `config/reference_products.yaml` | Big Mac/Whopper, combo, nuggets, bebidas, pañales, etc. |
 | `src/competitive_intel/scrapers/*` | Implementación por competidor |
 | `data/raw` | Respuestas o extracts crudos (no subir datos sensibles) |
@@ -59,14 +59,15 @@ python -m venv .venv
 pip install -U pip
 pip install -r requirements.txt
 pip install -e .
+playwright install chromium
 ```
 
-La instalación editable (`-e .`) registra el paquete `competitive_intel` desde `src/`.
+La instalación editable (`-e .`) registra el paquete `competitive_intel` desde `src/`. **Playwright** necesita el binario del navegador (`playwright install chromium`) para el scraping.
 
 ## Configuración
 
 1. Copia `.env.example` a `.env` y ajusta solo lo necesario.
-2. Copia `config/locations.template.yaml` a `config/locations.yaml` y completa las ubicaciones.
+2. Crea `config/locations.yaml` (puedes partir de `config/locations.example.yaml`) con `id`, `address_line` (o `label`) y metadatos de zona.
 3. Documenta criterio y justificación en [docs/LOCATIONS.md](docs/LOCATIONS.md).
 
 ## Cómo ejecutar el scraper
@@ -76,6 +77,7 @@ CLI (módulo principal):
 ```bash
 python -m competitive_intel scrape --dry-run
 python -m competitive_intel scrape
+python -m competitive_intel scrape --platform uber_eats --headed
 ```
 
 Script de ejemplo:
@@ -83,9 +85,10 @@ Script de ejemplo:
 ```bash
 python scripts/run_scrape.py --dry-run
 python scripts/run_scrape.py
+python scripts/run_scrape.py --platform rappi --headed
 ```
 
-Hoy el pipeline **no llama aún a las apps**: escribe un manifiesto en `data/raw/` y valida configuración. Sustituir por ejecución real en `scrapers/*/scraper.py` y `pipelines/run_scrape.py`.
+El pipeline abre **Chromium** (Playwright), recorre las plataformas habilitadas en `config/default.yaml`, aplica **delays con jitter** entre pasos y ubicaciones, y escribe **`data/raw/scrape_<timestamp>.jsonl`** más un `*_meta.json`. Los selectores pueden requerir ajuste si las UIs cambian; revisa `scrapers/flows.py`.
 
 ## Cómo generar el reporte
 

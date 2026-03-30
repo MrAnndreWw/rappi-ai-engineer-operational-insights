@@ -1,0 +1,5 @@
+locations:
+  - id: cdmx_ejemplo_01
+    label: "CDMX ejemplo"
+    address_line: "Av. Paseo de la Reforma 222, Juárez, Ciudad de México"
+    zone_type: commercial_mid
