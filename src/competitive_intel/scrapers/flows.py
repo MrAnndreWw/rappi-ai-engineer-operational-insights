@@ -894,26 +894,208 @@ def scrape_uber_eats_location(page: Page, location: dict[str, Any], settings: di
         page.goto("https://www.ubereats.com/mx", wait_until="load", timeout=_nav_timeout(settings))
         try_dismiss_cookies(page)
         sleep_scrape_delay(settings)
-        loc = page.get_by_placeholder(re.compile(r"dirección.*entrega|entrega", re.I)).first
-        loc.wait_for(state="visible", timeout=20000)
-        loc.click()
-        loc.fill(addr, timeout=10000)
-        sleep_scrape_delay(settings)
-        page.wait_for_timeout(1200)
+
+        # 1. Tratamos de ubicar la barra de búsqueda principal de la landing page
+        home_loc = page.locator("#location-typeahead-home-input").first
+        if not home_loc.is_visible():
+            home_loc = page.get_by_placeholder(re.compile(r"Ingresa la dirección de entrega|dirección.*entrega", re.I)).first
+
+        if home_loc.is_visible(timeout=4000):
+            # 1. FLUJO LANDING PAGE (Inicio Limpio)
+            loc_input = home_loc
+        else:
+            # 2. FLUJO DE MODAL (Feed activo o ubicación genérica pre-seleccionada)
+            edit_btn = page.locator('[data-testid="edit-delivery-location-button"]').first
+            edit_btn.wait_for(state="visible", timeout=8000)
+            edit_btn.click(timeout=5000)
+            
+            # Buscar el botón "Cambiar" si hay una dirección explícita anterior.
+            # Si no ha sido guardada, el input puede salir de inmediato sin este botón.
+            try:
+                change_btn = page.locator('[data-testid="change-address-button"]').first
+                change_btn.wait_for(state="visible", timeout=4000)
+                change_btn.click(timeout=5000)
+            except Exception:
+                pass
+                
+            # Asignamos el input del modal como nuestro objetivo
+            loc_input = page.locator("#location-typeahead-location-manager-input").first
+            loc_input.wait_for(state="visible", timeout=10000)
+
+        # Usar el input correspondiente (sea el de home o el modal) para inyectar la dirección
+        loc_input.click()
+        loc_input.fill("")
+        loc_input.press_sequentially(addr, delay=35, timeout=60000)
+        
+        page.wait_for_timeout(3000)
         page.keyboard.press("ArrowDown")
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(200)
         page.keyboard.press("Enter")
+        
+        # Cerrar modal en caso de que quede flotando en pantalla (Flujo Modal)
         try:
-            search = page.get_by_role("button", name=re.compile(r"Buscar comida", re.I))
-            search.first.click(timeout=8000)
+            listo_btn = page.locator('button:has-text("Listo")').first
+            if listo_btn.is_visible(timeout=3000):
+                listo_btn.click()
+                page.wait_for_timeout(2000)
         except Exception:
             pass
+        
+        # Opcional: Presionar "Buscar comida" si nos quedamos estancados en el Landing Page
+        try:
+            search = page.get_by_role("button", name=re.compile(r"Buscar comida", re.I))
+            if search.first.is_visible(timeout=2000):
+                search.first.click(timeout=8000)
+        except Exception:
+            pass
+
         page.wait_for_timeout(3000)
         page.wait_for_load_state("load", timeout=30000)
     except Exception as e:
         err = str(e)
     _apply_navigation_result(rec, "uber_eats", page.url, err)
-    return [rec]
+    
+    if rec["status"] == "error":
+        return [rec]
+        
+    cfg = _uber_eats_scrape_cfg(settings)
+    chains = _uber_eats_chain_list(cfg, settings)
+    rows: list[dict[str, Any]] = []
+    
+    for idx, chain in enumerate(chains):
+        if idx > 0:
+            sleep_scrape_delay(settings)
+            
+        rc = dict(rec)
+        rc["status"] = "partial"
+        
+        _uber_scrape_one_chain(page, rc, settings, chain)
+            
+        rows.append(rc)
+
+    return rows
+
+def _uber_eats_scrape_cfg(settings: dict[str, Any]) -> dict[str, Any]:
+    return (settings.get("scraping") or {}).get("uber_eats") or {}
+
+def _uber_eats_chain_list(cfg: dict[str, Any], settings: dict[str, Any] = None) -> list[str]:
+    chains = cfg.get("chains")
+    if isinstance(chains, list) and chains:
+        return [str(c).strip() for c in chains if str(c).strip()]
+        
+    if settings:
+        rappi_chains = settings.get("scraping", {}).get("rappi", {}).get("chains")
+        if rappi_chains:
+            return [str(c).strip() for c in rappi_chains if str(c).strip()]
+            
+    return ["McDonald's", "Little Caesars", "KFC", "Subway", "Burger King"]
+
+def _uber_scrape_one_chain(page: Page, rc: dict[str, Any], settings: dict[str, Any], chain: str):
+    logger.info("uber_eats comenzando chain=%s", chain)
+    t_open = time.perf_counter()
+    try:
+        _uber_open_chain_store(page, settings, chain)
+        rc["url"] = page.url
+        logger.info("uber_eats timing chain=%s open_store=%.2fs url=%s", chain, time.perf_counter() - t_open, page.url)
+    except Exception as e:
+        rc["status"] = "error"
+        rc["error"] = f"Error al abrir tienda: {e}"
+        return
+
+    # Extraer métricas de la tienda (Costo de envío y Tiempo)
+    try:
+        fee_loc = page.locator('span[data-testid="rich-text"]').filter(has_text=re.compile(r"envío", re.I)).first
+        if fee_loc.is_visible(timeout=3000):
+            rc["store_delivery_fee"] = fee_loc.inner_text().strip()
+            
+        time_loc = page.locator('span[data-testid="rich-text"]').filter(has_text=re.compile(r"\bmin\b", re.I)).first
+        if time_loc.is_visible(timeout=3000):
+            rc["store_delivery_time"] = time_loc.inner_text().strip()
+    except Exception as e:
+        logger.debug("uber_eats no se pudo extraer info de envío: %s", e)
+
+    # Extraer items del menú con la estructura dinámica que nos pasó el usuario
+    try:
+        # Asegurar carga haciendo un pequeño scroll
+        for _ in range(4):
+            page.mouse.wheel(0, 1500)
+            page.wait_for_timeout(500)
+            
+        t_items = time.perf_counter()
+        menu_items = page.evaluate("""() => {
+            const items = [];
+            // Buscar todos los spans que tengan la clase rich-text y contengan el símbolo '$'
+            const priceSpans = Array.from(document.querySelectorAll('span[data-testid="rich-text"]'))
+                                    .filter(span => span.textContent.includes('$'));
+                                    
+            priceSpans.forEach(priceSpan => {
+                // Subir 2 a 4 niveles en el DOM para englobar el nombre y el precio del producto
+                let container = priceSpan.parentElement;
+                for (let i = 0; i < 3; i++) {
+                    if (container && container.parentElement) {
+                        container = container.parentElement;
+                    }
+                }
+                if (!container) return;
+                
+                // Dentro del contenedor, buscar todos los rich-text
+                const allRichTexts = Array.from(container.querySelectorAll('span[data-testid="rich-text"]'));
+                // El nombre suele ser el que NO tiene '$'
+                const nameNode = allRichTexts.find(n => !n.textContent.includes('$'));
+                
+                if (nameNode && priceSpan) {
+                    items.push({
+                        name: nameNode.textContent.trim(),
+                        price_raw: priceSpan.textContent.trim()
+                    });
+                }
+            });
+            
+            // Eliminar duplicados
+            const unique = [];
+            const seen = new Set();
+            for (let item of items) {
+                const key = item.name + '|' + item.price_raw;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(item);
+                }
+            }
+            return unique;
+        }""")
+        
+        rc["menu_items"] = menu_items
+        rc["status"] = "ok" if menu_items else "partial"
+        logger.info("uber_eats timing chain=%s menu_items=%.2fs (n=%d)", chain, time.perf_counter() - t_items, len(menu_items))
+    except Exception as e:
+        rc["error"] = f"Error extrayendo items: {e}"
+        rc["status"] = "partial"
+
+def _uber_open_chain_store(page: Page, settings: dict[str, Any], chain: str):
+    logger.info("uber_eats buscando cadena: %s", chain)
+    
+    # Selector proporcionado por el usuario para la barra global de búsqueda superior en Uber Eats
+    loc = page.locator("#search-suggestions-typeahead-input").first
+    if not loc.is_visible(timeout=5000):
+        loc = page.get_by_placeholder(re.compile(r"Buscar.*Eats", re.I)).first
+        
+    loc.click()
+    loc.fill("")
+    loc.press_sequentially(chain, delay=35, timeout=60000)
+    
+    # En lugar de presionar flechas, esperamos puntualmente a que aparezca tu bloque HTML
+    try:
+        suggestion = page.locator("#search-suggestions-typeahead-item-0 a").first
+        suggestion.wait_for(state="visible", timeout=8000)
+        suggestion.click(timeout=5000)
+    except Exception:
+        # Fallback
+        page.keyboard.press("ArrowDown")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Enter")
+    
+    page.wait_for_load_state("load", timeout=25000)
+    page.wait_for_timeout(3000)
 
 
 def scrape_didi_food_location(page: Page, location: dict[str, Any], settings: dict[str, Any]) -> list[dict[str, Any]]:

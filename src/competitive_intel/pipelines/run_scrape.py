@@ -125,45 +125,45 @@ def run_scrape_pipeline(
         t0 = time.perf_counter()
         browser = p.chromium.launch(headless=headless, channel="chrome")
         _LOG.info("playwright chromium.launch %.2fs (headless=%s, channel=chrome)", time.perf_counter() - t0, headless)
-        context_kwargs: dict[str, Any] = {
-            "locale": "es-MX",
-            "timezone_id": "America/Mexico_City",
-            "viewport": {"width": 1365, "height": 900},
-        }
-        if auth_file.is_file():
-            _LOG.info("Cargando sesión desde %s", auth_file)
-            context_kwargs["storage_state"] = str(auth_file)
-
-        context = browser.new_context(**context_kwargs)
-        context.set_default_navigation_timeout(timeout_ms)
-        page = context.new_page()
-
-        if not auth_file.is_file() and not headless:
-            _LOG.info("=== INICIO DE SESIÓN MANUAL ===")
-            try:
-                page.goto("https://www.rappi.com.mx", wait_until="load")
-                print("\n" + "=" * 60)
-                print("Por favor, inicia sesión manualmente en la ventana del navegador de Rappi.")
-                print("Una vez hayas ingresado el código SMS y estés logueado correctamente,")
-                input("PRESIONA ENTER AQUÍ EN LA TERMINAL PARA CONTINUAR...")
-                print("=" * 60 + "\n")
-                context.storage_state(path=str(auth_file))
-                _LOG.info("Sesión inicial guardada en %s", auth_file)
-            except Exception as e:
-                _LOG.warning("No se pudo completar el flujo de inicio de sesión inicial: %s", e)
-
         first_platform = True
         for plat in enabled:
             flow = FLOW_REGISTRY.get(plat)
             if not flow:
                 print(f"Omitido (sin flujo): {plat}")
                 continue
+
+            context_kwargs: dict[str, Any] = {
+                "locale": "es-MX",
+                "timezone_id": "America/Mexico_City",
+                "viewport": {"width": 1365, "height": 900},
+            }
+            if plat == "rappi" and auth_file.is_file():
+                _LOG.info("Cargando sesión desde %s para %s", auth_file, plat)
+                context_kwargs["storage_state"] = str(auth_file)
+
+            context = browser.new_context(**context_kwargs)
+            context.set_default_navigation_timeout(timeout_ms)
+            page = context.new_page()
+
+            if plat == "rappi" and not auth_file.is_file() and not headless:
+                _LOG.info("=== INICIO DE SESIÓN MANUAL ===")
+                try:
+                    page.goto("https://www.rappi.com.mx", wait_until="load")
+                    print("\n" + "=" * 60)
+                    print("Por favor, inicia sesión manualmente en la ventana del navegador de Rappi.")
+                    print("Una vez logueado correctamente,")
+                    input("PRESIONA ENTER AQUÍ EN LA TERMINAL PARA CONTINUAR...")
+                    print("=" * 60 + "\n")
+                    context.storage_state(path=str(auth_file))
+                    _LOG.info("Sesión inicial guardada en %s", auth_file)
+                except Exception as e:
+                    _LOG.warning("No se pudo completar el flujo de inicio de sesión: %s", e)
+
             if not first_platform:
                 t_plat_pause = time.perf_counter()
                 sleep_between_platforms(settings)
                 _LOG.info("pause between_platforms %.2fs", time.perf_counter() - t_plat_pause)
             first_platform = False
-
 
             t_plat = time.perf_counter()
             for j, loc in enumerate(locations):
@@ -184,11 +184,14 @@ def run_scrape_pipeline(
                 )
             _LOG.info("platform=%s total_wall=%.2fs", plat, time.perf_counter() - t_plat)
 
-        try:
-            context.storage_state(path=str(auth_file))
-            _LOG.info("Sesión guardada en %s", auth_file)
-        except Exception as e:
-            _LOG.warning("No se pudo guardar la sesión: %s", e)
+            if plat == "rappi":
+                try:
+                    context.storage_state(path=str(auth_file))
+                    _LOG.info("Sesión guardada en %s", auth_file)
+                except Exception as e:
+                    _LOG.warning("No se pudo guardar la sesión: %s", e)
+            
+            context.close()
 
         browser.close()
     _LOG.info("scrape run total_wall=%.2fs rows=%d", time.perf_counter() - t_run, len(all_rows))
