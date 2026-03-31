@@ -78,5 +78,5 @@ def dump_rappi_page(
             page.screenshot(path=str(png_p), full_page=False)
         except Exception:
             logger.debug("rappi debug: screenshot omitido step=%s", step)
-    logger.info("rappi debug volcado step=%s -> %s", step, html_p)
+    logger.debug("rappi debug volcado step=%s -> %s", step, html_p)
     return html_p

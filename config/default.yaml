@@ -7,7 +7,6 @@ platforms:
   enabled:
     - rappi
     - uber_eats
-    - didi_food
 
 outputs:
   export_format: jsonl
@@ -16,28 +15,34 @@ outputs:
 scraping:
   request_timeout_seconds: 30
   max_retries: 2
-  delay_seconds: 2
-  delay_jitter_seconds: 1.5
-  between_locations_seconds: 4
-  between_platforms_seconds: 8
+  # Si ves HTTP 429 (Too Many Requests), sube delay_* y between_*; divide el run (--max-locations o menos cadenas).
+  delay_seconds: 3
+  delay_jitter_seconds: 2
+  between_locations_seconds: 10
+  between_platforms_seconds: 15
   navigation_timeout_ms: 45000
   headless: true
+  # Al finalizar run_scrape: JSON Rappi vs Uber en outputs/exports/rappi_uber_comparison_<mismo_stamp>.json
+  comparison_similarity: 0.9
+  # Lista única de cadenas para Rappi y Uber Eats (y fallback coherente).
+  # Opcional: overrides por plataforma en scraping.rappi.chains / scraping.uber_eats.chains
+  chains:
+    - McDonald's
+    - Burger King
   rappi:
     # Volcar HTML + PNG + .meta.json por paso (ver data/debug/rappi_pages/). Activar también con --rappi-dump-pages.
     debug_page_dumps: false
-    debug_page_dir: null # null = data/debug/rappi_pages
-    menu_items_limit: 10
-    # Pausa entre cadenas (rate limiting); bajar con cuidado si Rappi limita requests.
-    between_chains_seconds: 4
-    # Overrides opcionales; más bajo = scrape más rápido (riesgo en redes lentas).
-    delay_seconds: 1
-    delay_jitter_seconds: 0.8
-    chains:
-      - McDonald's
-      - Little Caesars
-      - KFC
-      - Subway
-      - Burger King
+    debug_page_dir: null # data/debug/rappi_pages
+    # null o 0 = extraer todo el menú (scroll hasta que deje de crecer; tope interno de seguridad).
+    menu_items_limit: null
+    # Pausa entre cadenas (evita 429 por muchas cargas seguidas).
+    between_chains_seconds: 8
+    # Overrides opcionales; valores bajos = más riesgo de rate limit.
+    delay_seconds: 2
+    delay_jitter_seconds: 1.5
+  uber_eats:
+    # Misma idea que rappi.between_chains_seconds (antes solo había delay global entre cadenas).
+    between_chains_seconds: 8
 
 metrics:
   collect:

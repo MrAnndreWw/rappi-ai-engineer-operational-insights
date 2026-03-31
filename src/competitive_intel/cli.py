@@ -21,6 +21,11 @@ def main(argv: list[str] | None = None) -> int:
     p_report = sub.add_parser("report")
     p_report.add_argument("--input", type=Path, default=None)
 
+    p_cmp = sub.add_parser("compare", help="Comparar Rappi vs Uber desde scrape JSONL → outputs/exports")
+    p_cmp.add_argument("--input", type=Path, default=None, help="scrape_*.jsonl (default: más reciente en data/raw)")
+    p_cmp.add_argument("--output", type=Path, default=None)
+    p_cmp.add_argument("--similarity", type=float, default=0.9, metavar="0-1")
+
     args = parser.parse_args(argv)
 
     if args.command == "scrape":
@@ -40,6 +45,17 @@ def main(argv: list[str] | None = None) -> int:
         from competitive_intel.reporting.generate_report import run_report_pipeline
 
         return run_report_pipeline(input_path=args.input)
+
+    if args.command == "compare":
+        from competitive_intel.analysis.platform_comparison import run_comparison_export
+
+        out = run_comparison_export(
+            input_path=args.input,
+            output_path=args.output,
+            similar_threshold=max(0.5, min(1.0, args.similarity)),
+        )
+        print(out)
+        return 0
 
     parser.print_help()
     return 1

@@ -8,7 +8,11 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from competitive_intel.scrapers.cookies import try_dismiss_cookies
-from competitive_intel.scrapers.throttle import sleep_between_rappi_chains, sleep_scrape_delay
+from competitive_intel.scrapers.throttle import (
+    sleep_between_rappi_chains,
+    sleep_between_uber_eats_chains,
+    sleep_scrape_delay,
+)
 
 try:
     from playwright.sync_api import Locator, Page
@@ -55,7 +59,10 @@ def _apply_navigation_result(rec: dict[str, Any], platform: str, url: str, err: 
         return
     if _still_on_landing(platform, url):
         rec["status"] = "partial"
-        rec["error"] = "URL sigue en landing; dirección o autocompletado no aplicó (revisa selectores o elige sugerencia)."
+        rec["error"] = (
+            "URL sigue en landing; direccion o autocompletado no aplico "
+            "(revisa selectores o elige sugerencia)."
+        )
         return
     rec["status"] = "ok"
     rec["error"] = None
@@ -65,14 +72,29 @@ def _rappi_scrape_cfg(settings: dict[str, Any]) -> dict[str, Any]:
     return (settings.get("scraping") or {}).get("rappi") or {}
 
 
-def _rappi_chain_list(cfg: dict[str, Any]) -> list[str]:
-    chains = cfg.get("chains")
-    if isinstance(chains, list) and chains:
-        return [str(c).strip() for c in chains if str(c).strip()]
+_DEFAULT_RESTAURANT_CHAINS: list[str] = ["McDonald's", "Burger King"]
+
+
+def _normalize_chains(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [p.strip() for p in re.split(r"[,;\n]", raw) if p.strip()]
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if x is not None and str(x).strip()]
+    return []
+
+
+def _rappi_chain_list(settings: dict[str, Any]) -> list[str]:
+    scrape = settings.get("scraping") or {}
+    cfg = scrape.get("rappi") or {}
+    for bucket in (_normalize_chains(cfg.get("chains")), _normalize_chains(scrape.get("chains"))):
+        if bucket:
+            return bucket
     legacy = cfg.get("store_search_query")
     if legacy:
         return [str(legacy).strip()]
-    return ["McDonald's"]
+    return list(_DEFAULT_RESTAURANT_CHAINS)
 
 
 def _rappi_chain_link_regex(chain: str) -> re.Pattern[str]:
@@ -145,7 +167,7 @@ def _rappi_wait_results_after_search(page: Page, chain: str, timeout_ms: int = 9
 
 def _rappi_global_search_candidates(page: Page) -> list[Locator]:
     ph = re.compile(
-        r"Comida|restaurantes|tiendas|productos|buscar|¿Qué|que quieres|pedir|en Rappi",
+        r"Comida|restaurantes|tiendas|productos|buscar|\u00bfQu\u00e9|que quieres|pedir|en Rappi",
         re.I,
     )
     return [
@@ -170,7 +192,9 @@ def _rappi_wait_global_search(page: Page, timeout_ms: int = 28000) -> Locator:
             except Exception:
                 continue
         page.wait_for_timeout(400)
-    raise TimeoutError("No se encontró la barra de búsqueda global (placeholder / searchbox / header).")
+    raise TimeoutError(
+        "No se encontro la barra de busqueda global (placeholder / searchbox / header)."
+    )
 
 
 def _rappi_top_search_visible(page: Page) -> bool:
@@ -256,13 +280,13 @@ def _rappi_row_to_item(name: str, price_raw: str, seen: set[tuple[str, str]]) ->
 
 
 def _rappi_extract_menu_items_data_qa(page: Page, limit: int, seen: set[tuple[str, str]]) -> list[dict[str, Any]]:
-    """Rappi (Chakra): tarjetas con data-qa product-item-*; título en h4 dentro de product-info; precio en span.chakra-text ($ 99.00)."""
+    """Rappi (Chakra): tarjetas con data-qa product-item-*; t?tulo en h4 dentro de product-info; precio en span.chakra-text ($ 99.00)."""
     raw_list = page.evaluate(
         """(lim) => {
           const out = [];
           const seen = new Set();
           const priceLine = /^\\$\\s*[\\d,.]+$/;
-          const skipTitle = /^(envío|calificación|menú|restaurantes similares|preguntas frecuentes|horario)/i;
+          const skipTitle = /^(env?o|calificaci?n|men?|restaurantes similares|preguntas frecuentes|horario)/i;
 
           function add(name, price_raw) {
             if (out.length >= lim) return;
@@ -320,7 +344,7 @@ def _rappi_extract_menu_items_headings(page: Page, limit: int, seen: set[tuple[s
           const seen = new Set();
           const priceFind = /\\$\\s*[\\d,.]+/;
           const priceTail = /((?:MX\\$|\\$)\\s*[\\d,.]+)\\s*$/i;
-          const skipFooter = /^(dirección|direccion|especialidad|especialidades|rating|horario|sobre\\s|preguntas|calificaciones|ubicación|ubicacion)$/i;
+          const skipFooter = /^(direcci?n|direccion|especialidad|especialidades|rating|horario|sobre\\s|preguntas|calificaciones|ubicaci?n|ubicacion)$/i;
           const sectionExact = new Set([
             'big mac + coca', 'mc para todos', 'mctrios comida', 'mctrio comida', 'tu fav',
             'a la carta comida', 'a la carta', 'postres', 'bebidas', 'cajita feliz',
@@ -328,18 +352,18 @@ def _rappi_extract_menu_items_headings(page: Page, limit: int, seen: set[tuple[s
             'snacks', 'kids', 'promociones', 'lanzamientos', 'especialidades', 'pizzas',
             'lo nuevo', 'lo nuevo!', 'todos los subs', 'sub series', 'sub series combos',
             'nuevos king de pollo', 'combos para 1', 'noches bk', 'promociones bk',
-            'family king', 'big krunch burger', 'kfc wöw', 'kfc wow', 'burgers', 'boxes',
-            'buckets para compartir', 'ke tiras lovers', 'caesar dips', 'caesar dips¨',
+            'family king', 'big krunch burger', 'kfc w?w', 'kfc wow', 'burgers', 'boxes',
+            'buckets para compartir', 'ke tiras lovers', 'caesar dips', 'caesar dips?',
             'promociones', 'lo nuevo', 'big krunch burger',
           ]);
-          const skipTitle = /^(envío|calificación|menú|restaurantes similares|preguntas frecuentes|horario)/i;
+          const skipTitle = /^(env?o|calificaci?n|men?|restaurantes similares|preguntas frecuentes|horario)/i;
 
           function looksLikeSectionTitle(name) {
             const t = name.replace(/\\u00a0/g, ' ').trim();
             const lower = t.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
             if (sectionExact.has(lower)) return true;
             if (skipFooter.test(t)) return true;
-            if (t.length >= 3 && t.length <= 36 && t === t.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(t)) return true;
+            if (t.length >= 3 && t.length <= 36 && t === t.toUpperCase() && /[A-Z??????????]/.test(t)) return true;
             return false;
           }
 
@@ -483,7 +507,7 @@ def _rappi_extract_menu_items_links(page: Page, limit: int, seen: set[tuple[str,
     items: list[dict[str, Any]] = []
     pat = re.compile(r"\$|MX\$", re.I)
     links = page.locator("a").filter(has=page.locator("text=/\\$|MX\\$/"))
-    n = min(links.count(), 80)
+    n = min(links.count(), max(120, min(limit, 800)))
     for i in range(n):
         if len(items) >= limit:
             break
@@ -560,7 +584,68 @@ def _rappi_extract_menu_items_eval(page: Page, limit: int, seen: set[tuple[str, 
     return items
 
 
-def _rappi_extract_menu_items(page: Page, limit: int) -> list[dict[str, Any]]:
+# Tope pasado a page.evaluate (evita arrays enormes); null en YAML = usar este valor.
+_RAPPI_MENU_JS_CAP = 12_000
+
+
+def _rappi_parse_menu_items_limit(cfg: dict[str, Any]) -> tuple[int | None, int]:
+    """
+    Devuelve (l?mite_usuario o None si ilimitado, cap para evaluate JS).
+    None / 0 / false ? ilimitado (scroll completo).
+    """
+    raw = cfg.get("menu_items_limit")
+    if raw is None or raw is False:
+        return None, _RAPPI_MENU_JS_CAP
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None, _RAPPI_MENU_JS_CAP
+    if n <= 0:
+        return None, _RAPPI_MENU_JS_CAP
+    return n, min(n, _RAPPI_MENU_JS_CAP)
+
+
+def _rappi_count_product_cards(page: Page) -> int:
+    try:
+        return page.locator('[data-qa^="product-item-"]').count()
+    except Exception:
+        return 0
+
+
+def _rappi_scroll_menu_to_load(page: Page, *, user_limit: int | None) -> None:
+    """Scroll tipo Uber: hasta alcanzar user_limit tarjetas o hasta que el conteo se estabilice."""
+    max_rounds = 140 if user_limit is None else max(50, min(140, user_limit + 35))
+    stable = 0
+    prev = -1
+    for _ in range(max_rounds):
+        n = _rappi_count_product_cards(page)
+        if user_limit is not None and n >= user_limit:
+            break
+        if n == prev:
+            stable += 1
+            if stable >= 7:
+                break
+        else:
+            stable = 0
+        prev = n
+        try:
+            page.evaluate("window.scrollBy(0, 1300)")
+        except Exception:
+            pass
+        page.mouse.wheel(0, 900)
+        page.wait_for_timeout(240)
+    try:
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    except Exception:
+        pass
+    page.wait_for_timeout(500)
+    page.mouse.wheel(0, -400)
+    page.wait_for_timeout(350)
+
+
+def _rappi_extract_menu_items(
+    page: Page, user_limit: int | None, js_cap: int
+) -> list[dict[str, Any]]:
     try:
         page.wait_for_selector(
             "#rappi-temporary-web-container, #__next, main, [role='main'], [data-qa^='product-item-']",
@@ -572,29 +657,25 @@ def _rappi_extract_menu_items(page: Page, limit: int) -> list[dict[str, Any]]:
         page.wait_for_selector("h3, h4, h5, a, [data-qa^='product-item-']", timeout=8000)
     except Exception:
         pass
-    page.wait_for_timeout(1100)
-    try:
-        n = page.locator('[data-qa^="product-item-"]').count()
-    except Exception:
-        n = 0
-    scroll_rounds = 4 if n >= limit else 6
-    for _ in range(scroll_rounds):
-        page.mouse.wheel(0, 480)
-        page.wait_for_timeout(160)
-    page.wait_for_timeout(450)
+    page.wait_for_timeout(900)
+    _rappi_scroll_menu_to_load(page, user_limit=user_limit)
+
     seen: set[tuple[str, str]] = set()
-    items = _rappi_extract_menu_items_data_qa(page, limit, seen)
-    if len(items) < limit:
-        items.extend(_rappi_extract_menu_items_headings(page, limit, seen))
-    if len(items) < limit:
-        items.extend(_rappi_extract_menu_items_links(page, limit, seen))
-    if len(items) < limit:
-        items.extend(_rappi_extract_menu_items_eval(page, limit, seen))
-    return items[:limit]
+    target = user_limit if user_limit is not None else js_cap
+    items = _rappi_extract_menu_items_data_qa(page, js_cap, seen)
+    if len(items) < target:
+        items.extend(_rappi_extract_menu_items_headings(page, js_cap, seen))
+    if len(items) < target:
+        items.extend(_rappi_extract_menu_items_links(page, js_cap, seen))
+    if len(items) < target:
+        items.extend(_rappi_extract_menu_items_eval(page, js_cap, seen))
+    if user_limit is not None:
+        return items[:user_limit]
+    return items
 
 
 def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
-    """Tiempo/envío: barra lateral del shell (no está dentro de store-info). Calificación: ratingScore en store-info."""
+    """Tiempo/env?o: barra lateral del shell (no est? dentro de store-info). Calificaci?n: ratingScore en store-info."""
     raw = page.evaluate(
         """() => {
           const norm = (s) => (s || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
@@ -629,7 +710,7 @@ def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
           }
 
           let delivery_eta_raw = rowValueAfterLabel(shell, 'Delivery');
-          let delivery_fee_raw = rowValueAfterLabel(shell, 'Envío');
+          let delivery_fee_raw = rowValueAfterLabel(shell, 'Env?o');
 
           const blobShell = norm(shell.innerText || '');
           if (!delivery_eta_raw) {
@@ -639,11 +720,11 @@ def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
             if (m) delivery_eta_raw = norm(m[1]);
           }
           if (!delivery_fee_raw) {
-            const j = blobShell.indexOf('Envío');
+            const j = blobShell.indexOf('Env?o');
             if (j >= 0) {
               const slice = blobShell.slice(j, j + 220);
               const g = slice.match(
-                /Envío[\\s\\S]{0,160}?(Gratis(?:\\s*\\([^)]+\\))?|\\$\\s*[\\d,.]+|MX\\$\\s*[\\d,.]+)/i
+                /Env?o[\\s\\S]{0,160}?(Gratis(?:\\s*\\([^)]+\\))?|\\$\\s*[\\d,.]+|MX\\$\\s*[\\d,.]+)/i
               );
               if (g) delivery_fee_raw = norm(g[1]);
             }
@@ -654,12 +735,12 @@ def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
           if (rs) store_rating_raw = norm(rs.textContent || '');
 
           if (!store_rating_raw) {
-            const cr = rowValueAfterLabel(shell, 'Calificación');
+            const cr = rowValueAfterLabel(shell, 'Calificaci?n');
             if (cr) store_rating_raw = (cr.split(/\\s+/)[0] || null);
           }
           if (!store_rating_raw) {
             const m = norm(storeInfo.innerText || '').match(
-              /Calificación[\\s\\S]{0,80}?([\\d]+(?:\\.[\\d]+)?)/i
+              /Calificaci?n[\\s\\S]{0,80}?([\\d]+(?:\\.[\\d]+)?)/i
             );
             if (m) store_rating_raw = m[1];
           }
@@ -689,7 +770,7 @@ def _rappi_scrape_one_chain(
     use_carousel_link: bool,
 ) -> None:
     cfg = _rappi_scrape_cfg(settings)
-    limit = int(cfg.get("menu_items_limit") or 10)
+    user_limit, js_cap = _rappi_parse_menu_items_limit(cfg)
     menu_err: str | None = None
     products: list[dict[str, Any]] = []
     rec["delivery_eta_raw"] = None
@@ -699,7 +780,7 @@ def _rappi_scrape_one_chain(
     try:
         t0 = time.perf_counter()
         _rappi_open_chain_store(page, settings, chain, use_carousel_link=use_carousel_link)
-        logger.info("rappi timing chain=%s open_store=%.2fs", chain, time.perf_counter() - t0)
+        logger.debug("rappi timing chain=%s open_store=%.2fs", chain, time.perf_counter() - t0)
         sleep_scrape_delay(settings, for_rappi=True)
         try:
             page.wait_for_load_state("domcontentloaded", timeout=15000)
@@ -718,20 +799,21 @@ def _rappi_scrape_one_chain(
         rec["delivery_eta_raw"] = meta["delivery_eta_raw"]
         rec["delivery_fee_raw"] = meta["delivery_fee_raw"]
         rec["store_rating_raw"] = meta["store_rating_raw"]
-        logger.info("rappi timing chain=%s store_meta=%.2fs", chain, time.perf_counter() - t1)
+        logger.debug("rappi timing chain=%s store_meta=%.2fs", chain, time.perf_counter() - t1)
         t2 = time.perf_counter()
-        products = _rappi_extract_menu_items(page, limit)
-        logger.info(
-            "rappi timing chain=%s menu_items=%.2fs (n=%s)",
+        products = _rappi_extract_menu_items(page, user_limit, js_cap)
+        logger.debug(
+            "rappi timing chain=%s menu_items=%.2fs (n=%s, limit=%s)",
             chain,
             time.perf_counter() - t2,
             len(products),
+            user_limit if user_limit is not None else "all",
         )
         if not products:
             menu_err = "No se encontraron productos con precio en la vista actual."
     except Exception as e:
         menu_err = str(e)[:600]
-    logger.info(
+    logger.debug(
         "rappi timing chain=%s total=%.2fs url=%s",
         chain,
         time.perf_counter() - t_chain,
@@ -739,7 +821,7 @@ def _rappi_scrape_one_chain(
     )
     rec["products_sample"] = products
     rec["chain"] = chain
-    rec["menu_items_limit"] = limit
+    rec["menu_items_limit"] = user_limit
     rec["final_url"] = page.url
     if menu_err:
         rec["menu_error"] = menu_err
@@ -785,60 +867,81 @@ def scrape_rappi_location(page: Page, location: dict[str, Any], settings: dict[s
     rec = _base_record("rappi", location)
     addr = rec["address_used"]
     if not str(addr).strip():
-        rec["error"] = "Falta address_line o label en la ubicación"
+        rec["error"] = "Falta address_line o label en la ubicacion"
         return [rec]
     err: str | None = None
     t_addr = time.perf_counter()
     try:
         sleep_scrape_delay(settings, for_rappi=True)
-        page.goto("https://www.rappi.com.mx", wait_until="load", timeout=_nav_timeout(settings))
+        page.goto("https://www.rappi.com.mx", wait_until="domcontentloaded", timeout=_nav_timeout(settings))
         try_dismiss_cookies(page)
         sleep_scrape_delay(settings, for_rappi=True)
-        loc = page.get_by_placeholder(re.compile(r"dirección de entrega|recibir|compra", re.I)).last
+        logger.debug("rappi: pausa 5s para estabilizar la landing antes del campo de direccion")
+        page.wait_for_timeout(5000)
+        _addr_ph = re.compile(
+            r"\u00bfD\u00f3nde quieres recibir tu compra|recibir tu compra|recibir|compra|"
+            r"direcci\u00f3n de entrega|direccion de entrega|direcci[o\u00f3]n|entrega",
+            re.I,
+        )
+        loc = page.locator("#input_box_address_capture input").first
+        try:
+            if loc.count() == 0 or not loc.is_visible(timeout=2500):
+                loc = page.locator('[data-testid="address_autocomplete"] input').first
+        except Exception:
+            loc = page.locator('[data-testid="address_autocomplete"] input').first
+        try:
+            if loc.count() == 0 or not loc.is_visible(timeout=2500):
+                loc = page.get_by_placeholder(_addr_ph).first
+        except Exception:
+            loc = page.get_by_placeholder(_addr_ph).first
         if not loc.is_visible(timeout=5000):
             try:
-                # El usuario identificó este span como el botón superior izquierdo
                 top_address_span = page.locator('span[data-testid="typography"][color="secondary3100"]').first
                 if top_address_span.is_visible():
                     top_address_span.click(timeout=5000)
                 else:
-                    # Alternativa muy amplia para el header:
                     page.locator("header, nav, [role='banner']").get_by_role("button").nth(1).click(timeout=5000)
             except Exception:
                 pass
+            loc = page.locator("#input_box_address_capture input").first
+            if loc.count() == 0 or not loc.is_visible(timeout=2000):
+                loc = page.locator('[data-testid="address_autocomplete"] input').first
+            if loc.count() == 0 or not loc.is_visible(timeout=2000):
+                loc = page.get_by_placeholder(_addr_ph).first
 
         loc.wait_for(state="visible", timeout=15000)
         loc.click()
         loc.fill("", timeout=2000)
         loc.press_sequentially(addr, delay=35, timeout=60000)
-        
-        page.wait_for_timeout(3000)
+
+        page.wait_for_timeout(2200)
         page.keyboard.press("ArrowDown")
         page.wait_for_timeout(200)
         page.keyboard.press("Enter")
-        page.wait_for_timeout(2000)
-        
-        # En la modal de "Verifica la ubicación", presionar "Confirmar dirección"
+        page.wait_for_timeout(1500)
+
+        _confirm_addr = re.compile(r"Confirmar\s+direcci[o\u00f3]n", re.I)
+        _save_addr = re.compile(r"Guardar\s+direcci[o\u00f3]n", re.I)
         try:
-            btn_confirm = page.locator("button").filter(has_text=re.compile(r"Confirmar dirección", re.I)).first
-            btn_confirm.wait_for(state="visible", timeout=10000)
+            btn_confirm = page.locator("button").filter(has_text=_confirm_addr).first
+            btn_confirm.wait_for(state="visible", timeout=8000)
             btn_confirm.click(timeout=8000)
-            page.wait_for_timeout(2500)
-            
-            # En la modal de "Agregar dirección", presionar "Guardar dirección"
-            btn_save = page.locator("button").filter(has_text=re.compile(r"Guardar dirección", re.I)).first
-            if btn_save.is_visible(timeout=8000):
+            page.wait_for_timeout(2000)
+            btn_save = page.locator("button").filter(has_text=_save_addr).first
+            if btn_save.is_visible(timeout=6000):
                 btn_save.click(timeout=8000)
-                page.wait_for_timeout(3000)
+                page.wait_for_timeout(2000)
         except Exception:
-            # Si no aparece, simplemente seguimos
             pass
 
-        page.wait_for_load_state("load", timeout=25000)
+        try:
+            page.wait_for_load_state("load", timeout=20000)
+        except Exception:
+            page.wait_for_load_state("domcontentloaded", timeout=8000)
     except Exception as e:
         err = str(e)
     _apply_navigation_result(rec, "rappi", page.url, err)
-    logger.info(
+    logger.debug(
         "rappi timing location=%s address_setup=%.2fs status=%s",
         rec.get("location_id"),
         time.perf_counter() - t_addr,
@@ -849,14 +952,15 @@ def scrape_rappi_location(page: Page, location: dict[str, Any], settings: dict[s
         return [rec]
 
     cfg = _rappi_scrape_cfg(settings)
-    chains = _rappi_chain_list(cfg)
+    chains = _rappi_chain_list(settings)
+    logger.debug("rappi cadenas configuradas (%s): %s", len(chains), chains)
     rows: list[dict[str, Any]] = []
     t_chains = time.perf_counter()
     for idx, chain in enumerate(chains):
         if idx > 0:
             t_pause = time.perf_counter()
             sleep_between_rappi_chains(settings)
-            logger.info("rappi timing pause_between_chains=%.2fs", time.perf_counter() - t_pause)
+            logger.debug("rappi timing pause_between_chains=%.2fs", time.perf_counter() - t_pause)
         rc: dict[str, Any] = _base_record("rappi", location)
         rc["address_used"] = rec["address_used"]
         rc["location_id"] = rec["location_id"]
@@ -873,7 +977,7 @@ def scrape_rappi_location(page: Page, location: dict[str, Any], settings: dict[s
             rc["status"] = "ok"
             rc["error"] = None
         rows.append(rc)
-    logger.info(
+    logger.debug(
         "rappi timing location=%s all_chains=%.2fs (chains=%s)",
         rec.get("location_id"),
         time.perf_counter() - t_chains,
@@ -886,7 +990,7 @@ def scrape_uber_eats_location(page: Page, location: dict[str, Any], settings: di
     rec = _base_record("uber_eats", location)
     addr = rec["address_used"]
     if not str(addr).strip():
-        rec["error"] = "Falta address_line o label en la ubicación"
+        rec["error"] = "Falta address_line o label en la ubicacion"
         return [rec]
     err: str | None = None
     try:
@@ -895,22 +999,27 @@ def scrape_uber_eats_location(page: Page, location: dict[str, Any], settings: di
         try_dismiss_cookies(page)
         sleep_scrape_delay(settings)
 
-        # 1. Tratamos de ubicar la barra de búsqueda principal de la landing page
+        # 1. Barra / input de direcci?n en landing
         home_loc = page.locator("#location-typeahead-home-input").first
         if not home_loc.is_visible():
-            home_loc = page.get_by_placeholder(re.compile(r"Ingresa la dirección de entrega|dirección.*entrega", re.I)).first
+            home_loc = page.get_by_placeholder(
+                re.compile(
+                    r"Ingresa la direcci\u00f3n de entrega|direcci[o\u00f3]n.*entrega",
+                    re.I,
+                )
+            ).first
 
         if home_loc.is_visible(timeout=4000):
             # 1. FLUJO LANDING PAGE (Inicio Limpio)
             loc_input = home_loc
         else:
-            # 2. FLUJO DE MODAL (Feed activo o ubicación genérica pre-seleccionada)
+            # 2. FLUJO DE MODAL (Feed activo o ubicaci?n gen?rica pre-seleccionada)
             edit_btn = page.locator('[data-testid="edit-delivery-location-button"]').first
             edit_btn.wait_for(state="visible", timeout=8000)
             edit_btn.click(timeout=5000)
             
-            # Buscar el botón "Cambiar" si hay una dirección explícita anterior.
-            # Si no ha sido guardada, el input puede salir de inmediato sin este botón.
+            # Buscar el bot?n "Cambiar" si hay una direcci?n expl?cita anterior.
+            # Si no ha sido guardada, el input puede salir de inmediato sin este bot?n.
             try:
                 change_btn = page.locator('[data-testid="change-address-button"]').first
                 change_btn.wait_for(state="visible", timeout=4000)
@@ -922,7 +1031,7 @@ def scrape_uber_eats_location(page: Page, location: dict[str, Any], settings: di
             loc_input = page.locator("#location-typeahead-location-manager-input").first
             loc_input.wait_for(state="visible", timeout=10000)
 
-        # Usar el input correspondiente (sea el de home o el modal) para inyectar la dirección
+        # Usar el input correspondiente (sea el de home o el modal) para inyectar la direcci?n
         loc_input.click()
         loc_input.fill("")
         loc_input.press_sequentially(addr, delay=35, timeout=60000)
@@ -958,19 +1067,19 @@ def scrape_uber_eats_location(page: Page, location: dict[str, Any], settings: di
     if rec["status"] == "error":
         return [rec]
         
-    cfg = _uber_eats_scrape_cfg(settings)
-    chains = _uber_eats_chain_list(cfg, settings)
+    chains = _uber_eats_chain_list(settings)
+    logger.debug("uber_eats cadenas configuradas (%s): %s", len(chains), chains)
     rows: list[dict[str, Any]] = []
     
     for idx, chain in enumerate(chains):
         if idx > 0:
-            sleep_scrape_delay(settings)
-            
+            sleep_between_uber_eats_chains(settings)
+
         rc = dict(rec)
         rc["status"] = "partial"
         
         _uber_scrape_one_chain(page, rc, settings, chain)
-            
+        rc["chain"] = chain
         rows.append(rc)
 
     return rows
@@ -978,33 +1087,35 @@ def scrape_uber_eats_location(page: Page, location: dict[str, Any], settings: di
 def _uber_eats_scrape_cfg(settings: dict[str, Any]) -> dict[str, Any]:
     return (settings.get("scraping") or {}).get("uber_eats") or {}
 
-def _uber_eats_chain_list(cfg: dict[str, Any], settings: dict[str, Any] = None) -> list[str]:
-    chains = cfg.get("chains")
-    if isinstance(chains, list) and chains:
-        return [str(c).strip() for c in chains if str(c).strip()]
-        
-    if settings:
-        rappi_chains = settings.get("scraping", {}).get("rappi", {}).get("chains")
-        if rappi_chains:
-            return [str(c).strip() for c in rappi_chains if str(c).strip()]
-            
-    return ["McDonald's", "Little Caesars", "KFC", "Subway", "Burger King"]
+def _uber_eats_chain_list(settings: dict[str, Any]) -> list[str]:
+    scrape = settings.get("scraping") or {}
+    cfg = scrape.get("uber_eats") or {}
+    for bucket in (
+        _normalize_chains(cfg.get("chains")),
+        _normalize_chains(scrape.get("chains")),
+        _normalize_chains((scrape.get("rappi") or {}).get("chains")),
+    ):
+        if bucket:
+            return bucket
+    return list(_DEFAULT_RESTAURANT_CHAINS)
 
 def _uber_scrape_one_chain(page: Page, rc: dict[str, Any], settings: dict[str, Any], chain: str):
-    logger.info("uber_eats comenzando chain=%s", chain)
+    logger.debug("uber_eats comenzando chain=%s", chain)
     t_open = time.perf_counter()
     try:
         _uber_open_chain_store(page, settings, chain)
         rc["url"] = page.url
-        logger.info("uber_eats timing chain=%s open_store=%.2fs url=%s", chain, time.perf_counter() - t_open, page.url)
+        logger.debug("uber_eats timing chain=%s open_store=%.2fs url=%s", chain, time.perf_counter() - t_open, page.url)
     except Exception as e:
         rc["status"] = "error"
         rc["error"] = f"Error al abrir tienda: {e}"
         return
 
-    # Extraer métricas de la tienda (Costo de envío y Tiempo)
+    # Extraer m?tricas de la tienda (Costo de env?o y Tiempo)
     try:
-        fee_loc = page.locator('span[data-testid="rich-text"]').filter(has_text=re.compile(r"envío", re.I)).first
+        fee_loc = page.locator('span[data-testid="rich-text"]').filter(
+            has_text=re.compile(r"env\u00edo|envio", re.I)
+        ).first
         if fee_loc.is_visible(timeout=3000):
             rc["store_delivery_fee"] = fee_loc.inner_text().strip()
             
@@ -1012,11 +1123,11 @@ def _uber_scrape_one_chain(page: Page, rc: dict[str, Any], settings: dict[str, A
         if time_loc.is_visible(timeout=3000):
             rc["store_delivery_time"] = time_loc.inner_text().strip()
     except Exception as e:
-        logger.debug("uber_eats no se pudo extraer info de envío: %s", e)
+        logger.debug("uber_eats no se pudo extraer info de env?o: %s", e)
 
-    # Extraer items del menú con la estructura dinámica que nos pasó el usuario
+    # Extraer items del men? con la estructura din?mica que nos pas? el usuario
     try:
-        # Asegurar carga haciendo un pequeño scroll
+        # Asegurar carga haciendo un peque?o scroll
         for _ in range(4):
             page.mouse.wheel(0, 1500)
             page.wait_for_timeout(500)
@@ -1024,7 +1135,7 @@ def _uber_scrape_one_chain(page: Page, rc: dict[str, Any], settings: dict[str, A
         t_items = time.perf_counter()
         menu_items = page.evaluate("""() => {
             const items = [];
-            // Buscar todos los spans que tengan la clase rich-text y contengan el símbolo '$'
+            // Buscar todos los spans que tengan la clase rich-text y contengan el s?mbolo '$'
             const priceSpans = Array.from(document.querySelectorAll('span[data-testid="rich-text"]'))
                                     .filter(span => span.textContent.includes('$'));
                                     
@@ -1066,15 +1177,15 @@ def _uber_scrape_one_chain(page: Page, rc: dict[str, Any], settings: dict[str, A
         
         rc["menu_items"] = menu_items
         rc["status"] = "ok" if menu_items else "partial"
-        logger.info("uber_eats timing chain=%s menu_items=%.2fs (n=%d)", chain, time.perf_counter() - t_items, len(menu_items))
+        logger.debug("uber_eats timing chain=%s menu_items=%.2fs (n=%d)", chain, time.perf_counter() - t_items, len(menu_items))
     except Exception as e:
         rc["error"] = f"Error extrayendo items: {e}"
         rc["status"] = "partial"
 
 def _uber_open_chain_store(page: Page, settings: dict[str, Any], chain: str):
-    logger.info("uber_eats buscando cadena: %s", chain)
+    logger.debug("uber_eats buscando cadena: %s", chain)
     
-    # Selector proporcionado por el usuario para la barra global de búsqueda superior en Uber Eats
+    # Selector proporcionado por el usuario para la barra global de b?squeda superior en Uber Eats
     loc = page.locator("#search-suggestions-typeahead-input").first
     if not loc.is_visible(timeout=5000):
         loc = page.get_by_placeholder(re.compile(r"Buscar.*Eats", re.I)).first
@@ -1102,7 +1213,7 @@ def scrape_didi_food_location(page: Page, location: dict[str, Any], settings: di
     rec = _base_record("didi_food", location)
     addr = rec["address_used"]
     if not str(addr).strip():
-        rec["error"] = "Falta address_line o label en la ubicación"
+        rec["error"] = "Falta address_line o label en la ubicacion"
         return [rec]
     err: str | None = None
     t = min(25000, _nav_timeout(settings))
@@ -1111,7 +1222,9 @@ def scrape_didi_food_location(page: Page, location: dict[str, Any], settings: di
         page.goto("https://www.didi-food.com/es-MX/food/", wait_until="load", timeout=_nav_timeout(settings))
         try_dismiss_cookies(page)
         sleep_scrape_delay(settings)
-        loc = page.get_by_placeholder(re.compile(r"dirección.*entrega|entrega|dirección", re.I)).first
+        loc = page.get_by_placeholder(
+            re.compile(r"direcci[o\u00f3]n.*entrega|entrega|direcci[o\u00f3]n", re.I)
+        ).first
         loc.wait_for(state="visible", timeout=20000)
         loc.click()
         loc.fill(addr, timeout=10000)
