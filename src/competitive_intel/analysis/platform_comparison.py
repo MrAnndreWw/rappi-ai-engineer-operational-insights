@@ -1,8 +1,11 @@
 """
-Comparación Rappi vs Uber Eats a partir de filas JSONL del scrape.
+Comparación multi-plataforma a partir de filas JSONL del scrape (ancla Rappi).
 
-Empareja productos por nombre (exacto normalizado o similitud alta) y contrasta
-envío / tiempo cuando ambas plataformas tienen fila para la misma ubicación y cadena.
+- Rappi vs Uber Eats (campos de nivel superior: matched_products, counts, …).
+- Rappi vs DiDi Food en `rappi_vs_didi_food` cuando existe fila didi_food.
+
+Requiere fila `rappi` por (location_id, chain); Uber y DiDi son opcionales pero
+al menos una debe existir para generar un bloque.
 """
 
 from __future__ import annotations
@@ -126,7 +129,7 @@ def extract_flat_products(row: dict[str, Any]) -> list[dict[str, Any]]:
                     "price_raw": p.get("price_raw"),
                 }
             )
-    elif plat == "uber_eats":
+    elif plat in ("uber_eats", "didi_food"):
         for p in row.get("menu_items") or []:
             name = str(p.get("name") or "").strip()
             pr = p.get("price_raw")
@@ -157,14 +160,34 @@ def _delivery_block_uber(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def match_products_cross_platform(
+def _delivery_block_didi(row: dict[str, Any]) -> dict[str, Any]:
+    """DiDi puede no exponer fee/tiempo en la fila scrape aún; deja campos listos."""
+    fee_raw = row.get("store_delivery_fee") or row.get("delivery_fee_raw")
+    time_raw = row.get("store_delivery_time") or row.get("delivery_eta_raw")
+    return {
+        "fee_raw": fee_raw,
+        "time_raw": time_raw,
+        "fee_mxn": parse_delivery_fee_mxn(fee_raw),
+        "time_minutes": parse_delivery_minutes(time_raw),
+    }
+
+
+def match_rappi_against_platform(
     rappi_items: list[dict[str, Any]],
-    uber_items: list[dict[str, Any]],
+    other_items: list[dict[str, Any]],
+    other_platform: str,
     *,
     similar_threshold: float = 0.9,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    """Devuelve (matches, rappi_solo, uber_solo)."""
-    used_uber: set[int] = set()
+    """Empareja menú Rappi con uber_eats o didi_food. other_platform: 'uber_eats' | 'didi_food'."""
+    if other_platform not in ("uber_eats", "didi_food"):
+        raise ValueError(f"other_platform: {other_platform}")
+    delta_key = (
+        "delta_uber_minus_rappi_mxn"
+        if other_platform == "uber_eats"
+        else "delta_didi_food_minus_rappi_mxn"
+    )
+    used_other: set[int] = set()
     matched_rappi: set[int] = set()
     matches: list[dict[str, Any]] = []
 
@@ -175,15 +198,15 @@ def match_products_cross_platform(
         best_sim = -1.0
         best_dist = float("inf")
 
-        for j, up in enumerate(uber_items):
-            if j in used_uber:
+        for j, op in enumerate(other_items):
+            if j in used_other:
                 continue
-            sim = name_similarity(rname, up["name"])
+            sim = name_similarity(rname, op["name"])
             if sim < similar_threshold:
                 continue
-            uprice = up.get("price_mxn")
-            if rprice is not None and uprice is not None:
-                dist = abs(rprice - uprice)
+            oprice = op.get("price_mxn")
+            if rprice is not None and oprice is not None:
+                dist = abs(rprice - oprice)
             else:
                 dist = float("inf")
 
@@ -193,30 +216,79 @@ def match_products_cross_platform(
                 best_dist = dist
 
         if best_j is not None:
-            used_uber.add(best_j)
+            used_other.add(best_j)
             matched_rappi.add(i)
-            up = uber_items[best_j]
-            ur, upx = rprice, up.get("price_mxn")
+            op = other_items[best_j]
+            ur, opx = rprice, op.get("price_mxn")
             delta = None
-            if ur is not None and upx is not None:
-                delta = round(upx - ur, 2)
+            if ur is not None and opx is not None:
+                delta = round(opx - ur, 2)
             pct = None
-            if ur and ur > 0 and upx is not None:
-                pct = round(100.0 * (upx - ur) / ur, 2)
+            if ur and ur > 0 and opx is not None:
+                pct = round(100.0 * (opx - ur) / ur, 2)
             matches.append(
                 {
-                    "match_type": "exact" if normalize_product_name(rname) == normalize_product_name(up["name"]) else "similar",
+                    "match_type": (
+                        "exact"
+                        if normalize_product_name(rname) == normalize_product_name(op["name"])
+                        else "similar"
+                    ),
                     "similarity": round(best_sim, 4),
                     "rappi": {"name": rname, "price_mxn": rprice, "price_raw": rp.get("price_raw")},
-                    "uber_eats": {"name": up["name"], "price_mxn": up.get("price_mxn"), "price_raw": up.get("price_raw")},
-                    "delta_uber_minus_rappi_mxn": delta,
+                    other_platform: {
+                        "name": op["name"],
+                        "price_mxn": op.get("price_mxn"),
+                        "price_raw": op.get("price_raw"),
+                    },
+                    delta_key: delta,
                     "pct_diff_vs_rappi": pct,
                 }
             )
 
     rappi_only = [rappi_items[k] for k in range(len(rappi_items)) if k not in matched_rappi]
-    uber_only = [uber_items[j] for j in range(len(uber_items)) if j not in used_uber]
-    return matches, rappi_only, uber_only
+    other_only = [other_items[j] for j in range(len(other_items)) if j not in used_other]
+    return matches, rappi_only, other_only
+
+
+def match_products_cross_platform(
+    rappi_items: list[dict[str, Any]],
+    uber_items: list[dict[str, Any]],
+    *,
+    similar_threshold: float = 0.9,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Devuelve (matches, rappi_solo, uber_solo). Compatibilidad; usa match_rappi_against_platform."""
+    return match_rappi_against_platform(
+        rappi_items, uber_items, "uber_eats", similar_threshold=similar_threshold
+    )
+
+
+def _triple_matched_products(
+    matches_ru: list[dict[str, Any]],
+    matches_rd: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Intersección de matches Rappi–Uber y Rappi–DiDi (mismo nombre Rappi normalizado)."""
+    ru_by_nr: dict[str, dict[str, Any]] = {}
+    for m in matches_ru:
+        nr = normalize_product_name(m["rappi"]["name"])
+        ru_by_nr[nr] = m
+    triple: list[dict[str, Any]] = []
+    for m in matches_rd:
+        nr = normalize_product_name(m["rappi"]["name"])
+        if nr not in ru_by_nr:
+            continue
+        a = ru_by_nr[nr]
+        triple.append(
+            {
+                "rappi": a["rappi"],
+                "uber_eats": a.get("uber_eats"),
+                "didi_food": m.get("didi_food"),
+                "similarity_rappi_uber": a.get("similarity"),
+                "similarity_rappi_didi": m.get("similarity"),
+                "delta_uber_minus_rappi_mxn": a.get("delta_uber_minus_rappi_mxn"),
+                "delta_didi_food_minus_rappi_mxn": m.get("delta_didi_food_minus_rappi_mxn"),
+            }
+        )
+    return triple
 
 
 def _infer_chain_from_uber_row(row: dict[str, Any]) -> str:
@@ -226,6 +298,8 @@ def _infer_chain_from_uber_row(row: dict[str, Any]) -> str:
         return "McDonald's"
     if "burger" in u and "king" in u:
         return "Burger King"
+    if "starbucks" in u:
+        return "Starbucks"
     if "kfc" in u:
         return "KFC"
     if "subway" in u:
@@ -243,13 +317,13 @@ def build_comparison_payload(
     by_key: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
     for row in rows:
         plat = row.get("platform")
-        if plat not in ("rappi", "uber_eats"):
+        if plat not in ("rappi", "uber_eats", "didi_food"):
             continue
         if row.get("status") == "error":
             continue
         loc = str(row.get("location_id") or "")
         chain = str(row.get("chain") or "").strip()
-        if plat == "uber_eats" and not chain:
+        if plat in ("uber_eats", "didi_food") and not chain:
             chain = _infer_chain_from_uber_row(row)
         if not loc or not chain:
             continue
@@ -260,51 +334,103 @@ def build_comparison_payload(
     blocks: list[dict[str, Any]] = []
     for (loc_id, chain), sides in sorted(by_key.items()):
         rr = sides.get("rappi")
+        if not rr:
+            continue
         ur = sides.get("uber_eats")
-        if not rr or not ur:
+        dr = sides.get("didi_food")
+        if not ur and not dr:
             continue
 
         r_items = extract_flat_products(rr)
-        u_items = extract_flat_products(ur)
-        matches, r_only, u_only = match_products_cross_platform(
-            r_items, u_items, similar_threshold=similar_threshold
-        )
 
-        dr = _delivery_block_rappi(rr)
-        du = _delivery_block_uber(ur)
-        dt = None
-        if dr.get("time_minutes") is not None and du.get("time_minutes") is not None:
-            dt = du["time_minutes"] - dr["time_minutes"]
-        df = None
-        if dr.get("fee_mxn") is not None and du.get("fee_mxn") is not None:
-            df = round(du["fee_mxn"] - dr["fee_mxn"], 2)
+        if ur:
+            u_items = extract_flat_products(ur)
+            matches_ru, r_only_ru, u_only = match_rappi_against_platform(
+                r_items, u_items, "uber_eats", similar_threshold=similar_threshold
+            )
+        else:
+            matches_ru, r_only_ru, u_only = [], list(r_items), []
+
+        rappi_vs_didi: dict[str, Any] | None = None
+        if dr:
+            d_items = extract_flat_products(dr)
+            matches_rd, r_only_rd, d_only = match_rappi_against_platform(
+                r_items, d_items, "didi_food", similar_threshold=similar_threshold
+            )
+            rappi_vs_didi = {
+                "matched_products": matches_rd,
+                "rappi_only_products": r_only_rd,
+                "didi_food_only_products": d_only,
+                "counts": {
+                    "matched": len(matches_rd),
+                    "rappi_only": len(r_only_rd),
+                    "didi_food_only": len(d_only),
+                    "rappi_total": len(r_items),
+                    "didi_food_total": len(d_items),
+                },
+            }
+
+        d_r = _delivery_block_rappi(rr)
+        d_u = _delivery_block_uber(ur) if ur else None
+        d_d = _delivery_block_didi(dr) if dr else None
+
+        dt_u = None
+        df_u = None
+        if ur and d_r.get("time_minutes") is not None and d_u and d_u.get("time_minutes") is not None:
+            dt_u = d_u["time_minutes"] - d_r["time_minutes"]
+        if ur and d_r.get("fee_mxn") is not None and d_u and d_u.get("fee_mxn") is not None:
+            df_u = round(d_u["fee_mxn"] - d_r["fee_mxn"], 2)
+
+        dt_d = None
+        df_d = None
+        if dr and d_r.get("time_minutes") is not None and d_d and d_d.get("time_minutes") is not None:
+            dt_d = d_d["time_minutes"] - d_r["time_minutes"]
+        if dr and d_r.get("fee_mxn") is not None and d_d and d_d.get("fee_mxn") is not None:
+            df_d = round(d_d["fee_mxn"] - d_r["fee_mxn"], 2)
+
+        delivery_comparison: dict[str, Any] = {
+            "rappi": d_r,
+            "uber_eats": d_u,
+            "didi_food": d_d,
+            "delta_time_minutes_uber_minus_rappi": dt_u,
+            "delta_fee_mxn_uber_minus_rappi": df_u,
+            "delta_time_minutes_didi_food_minus_rappi": dt_d,
+            "delta_fee_mxn_didi_food_minus_rappi": df_d,
+        }
+
+        platforms_present = [p for p in ("rappi", "uber_eats", "didi_food") if sides.get(p)]
+        uber_total = len(extract_flat_products(ur)) if ur else 0
+        triple_rows: list[dict[str, Any]] = []
+        if ur and dr:
+            triple_rows = _triple_matched_products(matches_ru, matches_rd)
 
         blocks.append(
             {
                 "location_id": loc_id,
                 "chain": chain,
-                "delivery_comparison": {
-                    "rappi": dr,
-                    "uber_eats": du,
-                    "delta_time_minutes_uber_minus_rappi": dt,
-                    "delta_fee_mxn_uber_minus_rappi": df,
-                },
-                "matched_products": matches,
-                "rappi_only_products": r_only,
+                "platforms_present": platforms_present,
+                "delivery_comparison": delivery_comparison,
+                "matched_products": matches_ru,
+                "rappi_only_products": r_only_ru,
                 "uber_eats_only_products": u_only,
                 "counts": {
-                    "matched": len(matches),
-                    "rappi_only": len(r_only),
+                    "matched": len(matches_ru),
+                    "rappi_only": len(r_only_ru),
                     "uber_only": len(u_only),
                     "rappi_total": len(r_items),
-                    "uber_total": len(u_items),
+                    "uber_total": uber_total,
                 },
+                "rappi_vs_didi_food": rappi_vs_didi,
+                "triple_matched_products": triple_rows,
+                "counts_triple": {"matched_three_platforms": len(triple_rows)},
             }
         )
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "similarity_threshold": similar_threshold,
+        "comparison_scope": "rappi_anchored_multi_platform",
+        "platforms": ["rappi", "uber_eats", "didi_food"],
         "comparisons": blocks,
     }
 
@@ -333,7 +459,7 @@ def run_comparison_export(
 
     if output_path is None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        output_path = paths.outputs_exports / f"rappi_uber_comparison_{stamp}.json"
+        output_path = paths.outputs_exports / f"rappi_uber_didi_comparison_{stamp}.json"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(

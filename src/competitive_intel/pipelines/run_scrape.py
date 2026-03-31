@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from competitive_intel.config import load_settings, resolve_data_paths
-from competitive_intel.scrapers.flows import FLOW_REGISTRY
+from competitive_intel.scrapers.flows import FLOW_REGISTRY, didi_url_is_login_portal
 from competitive_intel.scrapers.throttle import sleep_between_locations, sleep_between_platforms
 
 _LOG = logging.getLogger("scrape")
@@ -45,6 +45,14 @@ def _load_locations(base: Path) -> tuple[Path, list[dict[str, Any]]]:
     return loc_file, locations
 
 
+def _playwright_storage_state_has_cookies(path: Path) -> bool:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return False
+    return len(data.get("cookies") or []) > 0
+
+
 def _load_products(base: Path) -> list[dict[str, Any]]:
     path = base / "reference_products.yaml"
     if not path.is_file():
@@ -75,6 +83,7 @@ def run_scrape_pipeline(
     loc_file, locations = _load_locations(base)
     products = _load_products(base)
     auth_file = base / "auth.json"
+    auth_didi_file = base / "auth_didi.json"
 
     data_dir, outputs_dir = resolve_data_paths()
     raw_dir = data_dir / "raw"
@@ -143,6 +152,15 @@ def run_scrape_pipeline(
             if plat == "rappi" and auth_file.is_file():
                 _LOG.debug("Cargando sesión desde %s para %s", auth_file, plat)
                 context_kwargs["storage_state"] = str(auth_file)
+            if plat == "didi_food" and auth_didi_file.is_file():
+                if _playwright_storage_state_has_cookies(auth_didi_file):
+                    _LOG.debug("Cargando sesión DiDi desde %s", auth_didi_file)
+                    context_kwargs["storage_state"] = str(auth_didi_file)
+                else:
+                    _LOG.warning(
+                        "%s no tiene cookies (plantilla vacia); se ignora hasta que guardes sesion con --headed.",
+                        auth_didi_file,
+                    )
 
             context = browser.new_context(**context_kwargs)
             context.set_default_navigation_timeout(timeout_ms)
@@ -161,6 +179,24 @@ def run_scrape_pipeline(
                     _LOG.debug("Sesión inicial guardada en %s", auth_file)
                 except Exception as e:
                     _LOG.warning("No se pudo completar el flujo de inicio de sesión: %s", e)
+
+            if (
+                plat == "didi_food"
+                and not _playwright_storage_state_has_cookies(auth_didi_file)
+                and not headless
+            ):
+                _LOG.info("=== INICIO DE SESIÓN MANUAL (DiDi Food) ===")
+                try:
+                    page.goto("https://www.didi-food.com/es-MX/food/feed/", wait_until="load")
+                    print("\n" + "=" * 60)
+                    print("Inicia sesión en DiDi Food en la ventana del navegador (si la web lo pide).")
+                    print("Cuando tu cuenta esté lista y veas la app de food,")
+                    input("PRESIONA ENTER EN LA TERMINAL PARA CONTINUAR CON EL SCRAPE...")
+                    print("=" * 60 + "\n")
+                    context.storage_state(path=str(auth_didi_file))
+                    _LOG.debug("Sesión DiDi guardada en %s", auth_didi_file)
+                except Exception as e:
+                    _LOG.warning("No se pudo completar el login manual de DiDi: %s", e)
 
             if not first_platform:
                 t_plat_pause = time.perf_counter()
@@ -186,7 +222,20 @@ def run_scrape_pipeline(
                     _LOG.debug("Sesión guardada en %s", auth_file)
                 except Exception as e:
                     _LOG.warning("No se pudo guardar la sesión: %s", e)
-            
+            if plat == "didi_food":
+                try:
+                    if didi_url_is_login_portal(page.url):
+                        _LOG.warning(
+                            "No se sobrescribe %s: la pestaña sigue en login DiDi (evita borrar cookies buenas). "
+                            "Vuelve a entrar con --headed y guarda cuando el feed cargue.",
+                            auth_didi_file,
+                        )
+                    else:
+                        context.storage_state(path=str(auth_didi_file))
+                        _LOG.debug("Sesión DiDi guardada en %s", auth_didi_file)
+                except Exception as e:
+                    _LOG.warning("No se pudo guardar la sesión DiDi: %s", e)
+
             context.close()
 
         browser.close()
@@ -210,15 +259,15 @@ def run_scrape_pipeline(
                 sim_f = 0.9
             sim_f = max(0.5, min(1.0, sim_f))
 
-            comparison_path = exports_dir / f"rappi_uber_comparison_{stamp}.json"
+            comparison_path = exports_dir / f"rappi_uber_didi_comparison_{stamp}.json"
             run_comparison_export(
                 input_path=out_path,
                 output_path=comparison_path,
                 similar_threshold=sim_f,
             )
-            _LOG.info("Comparacion Rappi/Uber escrita en %s", comparison_path)
+            _LOG.info("Comparacion Rappi/Uber/DiDi escrita en %s", comparison_path)
         except Exception as e:
-            _LOG.warning("No se pudo generar la comparacion Rappi/Uber (JSON): %s", e)
+            _LOG.warning("No se pudo generar la comparacion multi-plataforma (JSON): %s", e)
 
     meta = {
         "run_at": datetime.now(timezone.utc).isoformat(),

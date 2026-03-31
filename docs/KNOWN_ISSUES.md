@@ -60,11 +60,13 @@ Comentario en YAML: si vuelve el 429, subir esos valores o partir el run (`--max
 
 ## 5. Tarifa de envío Rappi en `null` en exports
 
-**Síntoma:** En JSON de comparación, `delivery_comparison.rappi.fee_mxn` / `fee_raw` suelen ir vacíos mientras Uber sí muestra texto parseado.
+**Síntoma:** En JSON de comparación, `delivery_comparison.rappi.fee_mxn` / `fee_raw` iban vacíos aunque en la UI aparecía **Envío → Gratis** (o precio) junto al `chakra-skeleton`.
 
-**Causa:** Selectores o momento de captura no extraen la fee en la vista actual de Rappi (no implica necesariamente envío gratis).
+**Causa principal corregida:** En `_rappi_extract_store_operational_meta` el JS buscaba la etiqueta literal **`Env?o`** (carácter incorrecto) en lugar de **`Envío`**, así que `rowValueAfterLabel` nunca coincidía con el `<span>Envío</span>`. El regex de respaldo usaba `Env?o` (en regex el `?` hacía opcional la `v`), tampoco válido.
 
-**Estado:** Pendiente de mejorar selectores o flujo de captura en `flows.py`. Los tiempos estimados suelen capturarse con mejor tasa.
+**Solución aplicada:** Etiquetas con escapes Unicode en JS (`Env\u00edo`, `Calificaci\u00f3n`), misma lógica de fila + `.chakra-skeleton` para leer **Gratis** o el monto. `parse_delivery_fee_mxn` ya mapeaba **Gratis** → `0.0` cuando `fee_raw` llega informado.
+
+**Si sigue en null:** valor aún no hidratado al momento del `evaluate` (skeleton vacío); probar un `wait_for_timeout` extra o esperar texto en el skeleton.
 
 ---
 

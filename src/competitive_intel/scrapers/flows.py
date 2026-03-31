@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from competitive_intel.scrapers.cookies import try_dismiss_cookies
 from competitive_intel.scrapers.throttle import (
+    sleep_between_didi_chains,
     sleep_between_rappi_chains,
     sleep_between_uber_eats_chains,
     sleep_scrape_delay,
@@ -51,6 +52,16 @@ def _still_on_landing(platform: str, url: str) -> bool:
     return False
 
 
+def didi_url_is_login_portal(url: str) -> bool:
+    """True si el navegador quedo en el login unificado de DiDi (didiglobal), no en el feed."""
+    u = (url or "").lower()
+    if "pc-login" in u or "public-biz/pc-login" in u:
+        return True
+    if "page.didiglobal.com" in u and "login" in u:
+        return True
+    return False
+
+
 def _apply_navigation_result(rec: dict[str, Any], platform: str, url: str, err: str | None) -> None:
     rec["final_url"] = url
     if err:
@@ -72,7 +83,7 @@ def _rappi_scrape_cfg(settings: dict[str, Any]) -> dict[str, Any]:
     return (settings.get("scraping") or {}).get("rappi") or {}
 
 
-_DEFAULT_RESTAURANT_CHAINS: list[str] = ["McDonald's", "Burger King"]
+_DEFAULT_RESTAURANT_CHAINS: list[str] = ["McDonald's", "Starbucks"]
 
 
 def _normalize_chains(raw: Any) -> list[str]:
@@ -101,10 +112,12 @@ def _rappi_chain_link_regex(chain: str) -> re.Pattern[str]:
     c = chain.strip()
     aliases: dict[str, str] = {
         "McDonald's": r"McDonald",
+        "McDonalds": r"McDonald",
         "Little Caesars": r"Little\s*Caesar",
         "KFC": r"\bKFC\b",
         "Subway": r"Subway",
         "Burger King": r"Burger\s*King",
+        "Starbucks": r"Starbucks?",
     }
     return re.compile(aliases.get(c, re.escape(c)), re.I)
 
@@ -122,6 +135,8 @@ def _rappi_url_looks_like_chain(url: str, chain: str) -> bool:
         return "subway" in u
     if "burger" in c and "king" in c:
         return "burger" in u and "king" in u
+    if "starbucks" in c:
+        return "starbucks" in u
     return chain.lower().replace(" ", "-")[:12] in u
 
 
@@ -137,6 +152,8 @@ def _rappi_chain_href_fragment(chain: str) -> str | None:
         return "subway"
     if "burger" in c and "king" in c:
         return "burger"
+    if "starbucks" in c:
+        return "starbucks"
     return None
 
 
@@ -675,10 +692,10 @@ def _rappi_extract_menu_items(
 
 
 def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
-    """Tiempo/env?o: barra lateral del shell (no est? dentro de store-info). Calificaci?n: ratingScore en store-info."""
+    """Lee tiempo de entrega, costo de envio y calificacion en la ficha de tienda Rappi."""
     raw = page.evaluate(
-        """() => {
-          const norm = (s) => (s || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+        r"""() => {
+          const norm = (s) => (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
           const shell =
             document.querySelector('#rappi-temporary-web-container') ||
             document.body;
@@ -709,22 +726,25 @@ def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
             return null;
           }
 
+          const LABEL_ENVIO = 'Env\u00edo';
+          const LABEL_CALIF = 'Calificaci\u00f3n';
+
           let delivery_eta_raw = rowValueAfterLabel(shell, 'Delivery');
-          let delivery_fee_raw = rowValueAfterLabel(shell, 'Env?o');
+          let delivery_fee_raw = rowValueAfterLabel(shell, LABEL_ENVIO);
 
           const blobShell = norm(shell.innerText || '');
           if (!delivery_eta_raw) {
             const m = blobShell.match(
-              /Delivery[\\s\\S]{0,200}?(\\d+(?:\\s*-\\s*\\d+)?\\s*min(?:utos)?)/i
+              /Delivery[\s\S]{0,200}?(\d+(?:\s*-\s*\d+)?\s*min(?:utos)?)/i
             );
             if (m) delivery_eta_raw = norm(m[1]);
           }
           if (!delivery_fee_raw) {
-            const j = blobShell.indexOf('Env?o');
+            const j = blobShell.indexOf(LABEL_ENVIO);
             if (j >= 0) {
               const slice = blobShell.slice(j, j + 220);
               const g = slice.match(
-                /Env?o[\\s\\S]{0,160}?(Gratis(?:\\s*\\([^)]+\\))?|\\$\\s*[\\d,.]+|MX\\$\\s*[\\d,.]+)/i
+                /Env\u00edo[\s\S]{0,160}?(Gratis(?:\s*\([^)]+\))?|\$\s*[\d,.]+|MX\$\s*[\d,.]+)/i
               );
               if (g) delivery_fee_raw = norm(g[1]);
             }
@@ -735,12 +755,12 @@ def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
           if (rs) store_rating_raw = norm(rs.textContent || '');
 
           if (!store_rating_raw) {
-            const cr = rowValueAfterLabel(shell, 'Calificaci?n');
-            if (cr) store_rating_raw = (cr.split(/\\s+/)[0] || null);
+            const cr = rowValueAfterLabel(shell, LABEL_CALIF);
+            if (cr) store_rating_raw = (cr.split(/\s+/)[0] || null);
           }
           if (!store_rating_raw) {
             const m = norm(storeInfo.innerText || '').match(
-              /Calificaci?n[\\s\\S]{0,80}?([\\d]+(?:\\.[\\d]+)?)/i
+              /Calificaci\u00f3n[\s\S]{0,80}?([\d]+(?:\.[\d]+)?)/i
             );
             if (m) store_rating_raw = m[1];
           }
@@ -759,6 +779,8 @@ def _rappi_extract_store_operational_meta(page: Page) -> dict[str, str | None]:
         "delivery_fee_raw": raw.get("delivery_fee_raw") if raw.get("delivery_fee_raw") else None,
         "store_rating_raw": raw.get("store_rating_raw") if raw.get("store_rating_raw") else None,
     }
+
+
 
 
 def _rappi_scrape_one_chain(
@@ -845,22 +867,429 @@ def _rappi_select_address_suggestion(page: Page) -> bool:
     return False
 
 
-def _click_didi_search(page: Page, timeout_ms: int) -> None:
-    last: Exception | None = None
-    candidates = [
-        lambda: page.get_by_role("button", name=re.compile(r"Buscar comida", re.I)).first.click(timeout=timeout_ms),
-        lambda: page.locator("button").filter(has_text=re.compile(r"Buscar", re.I)).first.click(timeout=timeout_ms),
-        lambda: page.get_by_text(re.compile(r"Buscar\s+comida", re.I)).click(timeout=timeout_ms),
-        lambda: page.locator('input[type="submit"]').first.click(timeout=timeout_ms),
-    ]
-    for fn in candidates:
+def _didi_feed_search_box_visible(page: Page) -> bool:
+    """True si el feed ya muestra la busqueda global de restaurantes (direccion aplicada)."""
+    try:
+        return page.get_by_placeholder(
+            re.compile(r"Buscar restaurantes o comid", re.I)
+        ).first.is_visible(timeout=2500)
+    except Exception:
+        return False
+
+
+def _didi_change_delivery_address(page: Page, addr: str, settings: dict[str, Any]) -> None:
+    """Header -> modal -> sugerencia; Confirmar 0-2 veces solo si hace falta (a veces la lista ya cierra el modal)."""
+    opener = page.locator(".d-cur_address .address-content.finger-style").first
+    if opener.count() == 0 or not opener.is_visible(timeout=2000):
+        opener = page.locator(".d-cur_address .address-content").first
+    if opener.count() == 0 or not opener.is_visible(timeout=2000):
+        opener = page.locator("div.d-cur_address").first
+    opener.wait_for(state="visible", timeout=20000)
+    opener.click(timeout=10000)
+    sleep_scrape_delay(settings)
+    inp = page.locator(".input-content input.el-input__inner").first
+    try:
+        inp.wait_for(state="visible", timeout=8000)
+    except Exception:
+        inp = page.get_by_placeholder(re.compile(r"Ingresa una direcci", re.I)).first
+        inp.wait_for(state="visible", timeout=20000)
+    inp.click()
+    inp.fill("", timeout=3000)
+    inp.fill(addr, timeout=15000)
+    page.wait_for_timeout(3000)
+    first_sug = page.locator(".delivery-address.finger-style").first
+    first_sug.wait_for(state="visible", timeout=12000)
+    first_sug.click(timeout=10000)
+    page.wait_for_timeout(900)
+    confirm_wait = min(4500, max(2500, _nav_timeout(settings) // 6))
+    if _didi_feed_search_box_visible(page):
+        logger.debug("didi_food: direccion aplicada sin Confirmar (barra de busqueda lista)")
+    else:
+        for attempt in range(2):
+            if _didi_feed_search_box_visible(page):
+                break
+            btn = page.get_by_role("button", name=re.compile(r"^Confirmar$", re.I)).first
+            try:
+                btn.wait_for(state="visible", timeout=confirm_wait)
+                btn.click(timeout=10000)
+                page.wait_for_timeout(700)
+            except Exception:
+                logger.debug("didi_food: Confirmar no visible (intento %s), sigue si aplica", attempt + 1)
+                break
+        if not _didi_feed_search_box_visible(page):
+            try:
+                page.wait_for_load_state("load", timeout=35000)
+            except Exception:
+                pass
+            page.wait_for_timeout(800)
+    page.wait_for_timeout(1200)
+
+
+def _didi_chain_list(settings: dict[str, Any]) -> list[str]:
+    scrape = settings.get("scraping") or {}
+    cfg = scrape.get("didi_food") or {}
+    for bucket in (
+        _normalize_chains(cfg.get("chains")),
+        _normalize_chains(scrape.get("chains")),
+    ):
+        if bucket:
+            return bucket
+    return list(_DEFAULT_RESTAURANT_CHAINS)
+
+
+def _didi_search_query_variants(chain: str) -> list[str]:
+    """DiDi a veces no matchea typeahead con apostrofes (McDonald's vs McDonalds)."""
+    s = chain.strip()
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(x: str) -> None:
+        z = x.strip()
+        if z and z not in seen:
+            seen.add(z)
+            out.append(z)
+
+    add(s)
+    no_apos = s.replace("'", "").replace("\u2019", "").replace("`", "")
+    add(no_apos)
+    add(re.sub(r"\s+", " ", no_apos))
+    low = no_apos.lower()
+    if "mcdonald" in low:
+        add("McDonalds")
+        add("McDonald")
+    if "burger" in low and "king" in low:
+        add("Burger King")
+        add("BurgerKing")
+    if "starbucks" in low:
+        add("Starbucks")
+        add("Starbucks Coffee")
+
+    return out
+
+
+def _didi_typeahead_shows_no_results(page: Page) -> bool:
+    try:
+        return page.get_by_text(re.compile(r"No se encontraron resultados", re.I)).first.is_visible(
+            timeout=800
+        )
+    except Exception:
+        return False
+
+
+def _didi_chain_loose_regex(chain: str) -> re.Pattern[str]:
+    """Regex para localizar tarjeta en el grid aunque el texto difiera un poco."""
+    s = chain.strip()
+    low = s.lower().replace("'", "").replace("\u2019", "")
+    if "mcdonald" in low:
+        return re.compile(r"McDonald'?s?", re.I)
+    if "burger" in low and "king" in low:
+        return re.compile(r"Burger\s*King", re.I)
+    if "starbucks" in low:
+        return re.compile(r"Starbucks?", re.I)
+    if len(low) <= 2:
+        return re.compile(re.escape(s), re.I)
+    first = re.split(r"[^\w]+", low)
+    first = next((w for w in first if len(w) > 2), low[:8])
+    return re.compile(r"\b" + re.escape(first) + r".{0,24}", re.I)
+
+
+def _didi_try_click_first_autocomplete(page: Page, click_timeout: int) -> bool:
+    if _didi_typeahead_shows_no_results(page):
+        return False
+    for sel in (
+        ".el-autocomplete-suggestion li",
+        ".el-autocomplete-suggestion",
+        ".el-select-dropdown .el-select-dropdown__item",
+        "[role='listbox'] [role='option']",
+        "li.el-select-dropdown__item",
+    ):
         try:
-            fn()
-            return
-        except Exception as e:
-            last = e
-    if last:
-        raise last
+            opt = page.locator(sel).first
+            opt.wait_for(state="visible", timeout=2200)
+            try:
+                blob = (opt.inner_text(timeout=400) or "").strip()
+            except Exception:
+                blob = ""
+            if blob and re.search(r"No se encontraron", blob, re.I):
+                continue
+            opt.click(timeout=click_timeout)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _didi_shop_card_looks_open(card: Locator) -> bool:
+    try:
+        txt = (card.inner_text(timeout=1200) or "").lower()
+    except Exception:
+        return True
+    return "cerrada" not in txt
+
+
+def _didi_click_first_open_shop_card(page: Page, chain: str, click_timeout: int) -> bool:
+    """
+    Resultados de busqueda DiDi: grid dl.shop-card (.shop-title p = nombre).
+    Primera tarjeta que matchee la cadena y no este cerrada (sin 'Cerrada' en el texto).
+    """
+    rx = _didi_chain_loose_regex(chain)
+    cards = page.locator("dl.shop-card")
+    try:
+        cards.first.wait_for(state="visible", timeout=10000)
+    except Exception:
+        pass
+    try:
+        n = cards.count()
+    except Exception:
+        n = 0
+    for i in range(min(n, 40)):
+        card = cards.nth(i)
+        try:
+            if not card.is_visible(timeout=800):
+                continue
+            title = ""
+            try:
+                title = card.locator(".shop-title p").first.inner_text(timeout=600) or ""
+            except Exception:
+                try:
+                    title = card.inner_text(timeout=500) or ""
+                except Exception:
+                    title = ""
+            title = title.strip()
+            if not title or not rx.search(title):
+                continue
+            if not _didi_shop_card_looks_open(card):
+                logger.debug("didi_food: shop-card[%s] omitida (cerrada): %s", i, title[:50])
+                continue
+            card.scroll_into_view_if_needed(timeout=5000)
+            card.click(timeout=click_timeout)
+            logger.debug("didi_food: clic shop-card abierta: %s", title[:60])
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _didi_click_restaurant_card_matching(page: Page, chain: str, click_timeout: int) -> bool:
+    """Grid shop-card (resultados busqueda) y fallback a enlaces / finger-style."""
+    if _didi_click_first_open_shop_card(page, chain, click_timeout):
+        return True
+    rx = _didi_chain_loose_regex(chain)
+    tries = [
+        lambda: page.get_by_role("link", name=rx).first,
+        lambda: page.locator("a").filter(has_text=rx).first,
+        lambda: page.locator(".finger-style").filter(has_text=rx).first,
+        lambda: page.get_by_text(rx).first,
+    ]
+    for mk in tries:
+        try:
+            loc = mk()
+            loc.wait_for(state="visible", timeout=6000)
+            loc.click(timeout=click_timeout)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _didi_click_logo_back_to_feed(page: Page, settings: dict[str, Any]) -> None:
+    """Logo header (div.logo) para volver al feed / home entre una cadena y la siguiente."""
+    t = _nav_timeout(settings)
+    try:
+        logo = page.locator("div.logo").first
+        logo.wait_for(state="visible", timeout=12000)
+        logo.click(timeout=10000)
+    except Exception:
+        try:
+            img = page.locator("div.logo img.icon-earth").first
+            img.wait_for(state="visible", timeout=5000)
+            img.click(timeout=10000)
+        except Exception:
+            logger.warning("didi_food: logo no clickeable; goto feed como respaldo")
+            page.goto(
+                "https://www.didi-food.com/es-MX/food/feed/",
+                wait_until="load",
+                timeout=t,
+            )
+    try:
+        page.wait_for_load_state("load", timeout=min(35000, t))
+    except Exception:
+        pass
+    sleep_scrape_delay(settings)
+    page.wait_for_timeout(1200)
+    ph = re.compile(r"Buscar restaurantes o comid", re.I)
+    try:
+        page.get_by_placeholder(ph).first.wait_for(state="visible", timeout=15000)
+    except Exception:
+        logger.debug("didi_food: barra busqueda no visible tras logo; url=%s", page.url[:120])
+
+
+def _didi_open_global_restaurant_search(page: Page, settings: dict[str, Any], chain: str) -> None:
+    """Barra superior: variantes de texto, typeahead, o tarjeta en grid si hay overlay sin resultados."""
+    t = min(30000, _nav_timeout(settings))
+    box = page.get_by_placeholder(re.compile(r"Buscar restaurantes o comid", re.I)).first
+    box.wait_for(state="visible", timeout=15000)
+
+    picked = False
+    for query in _didi_search_query_variants(chain):
+        box.click(timeout=8000)
+        box.fill("", timeout=3000)
+        box.press_sequentially(query, delay=35, timeout=60000)
+        page.wait_for_timeout(1200)
+        if _didi_typeahead_shows_no_results(page):
+            logger.debug("didi_food: typeahead vacio para query=%r, siguiente variante", query)
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(450)
+            continue
+        if _didi_try_click_first_autocomplete(page, t):
+            picked = True
+            break
+        page.wait_for_timeout(600)
+        if _didi_click_first_open_shop_card(page, chain, t):
+            picked = True
+            break
+        page.keyboard.press("ArrowDown")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(1200)
+        if not _didi_typeahead_shows_no_results(page):
+            picked = True
+            break
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(450)
+
+    if not picked:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(500)
+        if _didi_click_restaurant_card_matching(page, chain, t):
+            picked = True
+
+    if not picked:
+        raise TimeoutError(
+            f"didi_food: sin resultado en busqueda ni tarjeta visible para cadena {chain!r}"
+        )
+
+    try:
+        page.wait_for_load_state("load", timeout=30000)
+    except Exception:
+        pass
+    page.wait_for_timeout(2000)
+
+
+_DIDI_MENU_JS_CAP = 8000
+
+
+def _didi_scrape_cfg(settings: dict[str, Any]) -> dict[str, Any]:
+    return (settings.get("scraping") or {}).get("didi_food") or {}
+
+
+def _didi_parse_menu_items_limit(cfg: dict[str, Any]) -> tuple[int | None, int]:
+    raw = cfg.get("menu_items_limit")
+    if raw is None or raw is False:
+        return None, _DIDI_MENU_JS_CAP
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None, _DIDI_MENU_JS_CAP
+    if n <= 0:
+        return None, _DIDI_MENU_JS_CAP
+    return n, min(n, _DIDI_MENU_JS_CAP)
+
+
+def _didi_scroll_menu(page: Page, *, user_limit: int | None) -> None:
+    rounds = 100 if user_limit is None else max(25, min(100, user_limit + 30))
+    for _ in range(rounds):
+        page.mouse.wheel(0, 1200)
+        page.wait_for_timeout(350)
+
+
+def _didi_extract_menu_items(page: Page, user_limit: int | None, js_cap: int) -> list[dict[str, Any]]:
+    cap = js_cap if user_limit is None else min(js_cap, user_limit)
+    raw = page.evaluate(
+        """(cap) => {
+          const cards = Array.from(document.querySelectorAll("dl.item-card"));
+          const out = [];
+          const seen = new Set();
+          for (const card of cards) {
+            if (out.length >= cap) break;
+            const titleEl = card.querySelector("p.title");
+            const priceEl = card.querySelector("p.item-price span.price");
+            if (!titleEl || !priceEl) continue;
+            const name = (titleEl.textContent || "").replace(/\\u00a0/g, " ").trim();
+            const price_raw = (priceEl.textContent || "").replace(/\\u00a0/g, " ").trim();
+            if (name.length < 2) continue;
+            if (!/MX\\$|\\$|MXN/i.test(price_raw)) continue;
+            const key = name + "|" + price_raw;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const descEl = card.querySelector("p.desc");
+            const crossEl = card.querySelector("s.crossed-price");
+            const tipsEls = card.querySelectorAll("p.tips");
+            let promo_raw = null;
+            for (const t of tipsEls) {
+              const tx = (t.textContent || "").replace(/\\s+/g, " ").trim();
+              if (tx && !/^\\s*$/i.test(tx)) {
+                promo_raw = tx;
+                break;
+              }
+            }
+            out.push({
+              name: name,
+              price_raw: price_raw,
+              desc: descEl ? (descEl.textContent || "").replace(/\\u00a0/g, " ").trim() || null : null,
+              price_was_raw: crossEl ? (crossEl.textContent || "").replace(/\\u00a0/g, " ").trim() || null : null,
+              promo_raw: promo_raw,
+            });
+          }
+          return out;
+        }""",
+        cap,
+    )
+    items = list(raw or [])
+    if user_limit is not None:
+        items = items[:user_limit]
+    return items
+
+
+def _didi_scrape_one_chain(page: Page, rc: dict[str, Any], settings: dict[str, Any], chain: str) -> None:
+    logger.debug("didi_food buscando cadena: %s", chain)
+    try:
+        _didi_open_global_restaurant_search(page, settings, chain)
+        rc["final_url"] = page.url
+        rc["chain"] = chain
+        rc["error"] = None
+    except Exception as e:
+        rc["status"] = "error"
+        rc["error"] = str(e)[:600]
+        rc["chain"] = chain
+        rc["menu_items"] = []
+        return
+
+    cfg = _didi_scrape_cfg(settings)
+    user_limit, js_cap = _didi_parse_menu_items_limit(cfg)
+    t0 = time.perf_counter()
+    try:
+        _didi_scroll_menu(page, user_limit=user_limit)
+        menu_items = _didi_extract_menu_items(page, user_limit, js_cap)
+        rc["menu_items"] = menu_items
+        rc["menu_items_limit"] = user_limit
+        rc["status"] = "ok" if menu_items else "partial"
+        rc["menu_error"] = (
+            None
+            if menu_items
+            else "Sin productos dl.item-card (tienda cerrada, menu vacio o selectores distintos)."
+        )
+        logger.debug(
+            "didi_food timing chain=%s menu_items=%.2fs (n=%d)",
+            chain,
+            time.perf_counter() - t0,
+            len(menu_items),
+        )
+    except Exception as e:
+        rc["menu_items"] = []
+        rc["status"] = "partial"
+        rc["menu_error"] = f"Error extrayendo menu DiDi: {e}"[:600]
+        logger.debug("didi_food menu extract fail chain=%s: %s", chain, e)
 
 
 def scrape_rappi_location(page: Page, location: dict[str, Any], settings: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1216,31 +1645,41 @@ def scrape_didi_food_location(page: Page, location: dict[str, Any], settings: di
         rec["error"] = "Falta address_line o label en la ubicacion"
         return [rec]
     err: str | None = None
-    t = min(25000, _nav_timeout(settings))
     try:
         sleep_scrape_delay(settings)
-        page.goto("https://www.didi-food.com/es-MX/food/", wait_until="load", timeout=_nav_timeout(settings))
+        page.goto(
+            "https://www.didi-food.com/es-MX/food/feed/",
+            wait_until="load",
+            timeout=_nav_timeout(settings),
+        )
         try_dismiss_cookies(page)
         sleep_scrape_delay(settings)
-        loc = page.get_by_placeholder(
-            re.compile(r"direcci[o\u00f3]n.*entrega|entrega|direcci[o\u00f3]n", re.I)
-        ).first
-        loc.wait_for(state="visible", timeout=20000)
-        loc.click()
-        loc.fill(addr, timeout=10000)
-        sleep_scrape_delay(settings)
-        page.wait_for_timeout(1200)
-        page.keyboard.press("ArrowDown")
-        page.wait_for_timeout(400)
-        page.keyboard.press("Enter")
-        page.wait_for_timeout(1500)
-        _click_didi_search(page, t)
-        page.wait_for_timeout(2500)
-        page.wait_for_load_state("load", timeout=30000)
+        if didi_url_is_login_portal(page.url):
+            err = (
+                "DiDi redirigio al login (sesion no valida o expirada en auth_didi.json). "
+                "Ejecuta con --headed, inicia sesion en la ventana y pulsa Enter solo cuando "
+                "veas el feed de comida. Si repite, borra config/auth_didi.json y vuelve a guardar sesion."
+            )
+        else:
+            _didi_change_delivery_address(page, addr, settings)
     except Exception as e:
         err = str(e)
     _apply_navigation_result(rec, "didi_food", page.url, err)
-    return [rec]
+    if rec["status"] == "error":
+        return [rec]
+
+    chains = _didi_chain_list(settings)
+    logger.debug("didi_food cadenas configuradas (%s): %s", len(chains), chains)
+    rows: list[dict[str, Any]] = []
+    for idx, chain in enumerate(chains):
+        if idx > 0:
+            sleep_between_didi_chains(settings)
+            _didi_click_logo_back_to_feed(page, settings)
+        rc = dict(rec)
+        rc["status"] = "partial"
+        _didi_scrape_one_chain(page, rc, settings, chain)
+        rows.append(rc)
+    return rows
 
 
 def _nav_timeout(settings: dict[str, Any]) -> int:

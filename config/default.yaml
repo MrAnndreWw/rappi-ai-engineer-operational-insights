@@ -7,6 +7,7 @@ platforms:
   enabled:
     - rappi
     - uber_eats
+    - didi_food
 
 outputs:
   export_format: jsonl
@@ -22,13 +23,13 @@ scraping:
   between_platforms_seconds: 15
   navigation_timeout_ms: 45000
   headless: true
-  # Al finalizar run_scrape: JSON Rappi vs Uber en outputs/exports/rappi_uber_comparison_<mismo_stamp>.json
+  # Al finalizar run_scrape: JSON multi-plataforma en outputs/exports/rappi_uber_didi_comparison_<mismo_stamp>.json
   comparison_similarity: 0.9
   # Lista única de cadenas para Rappi y Uber Eats (y fallback coherente).
   # Opcional: overrides por plataforma en scraping.rappi.chains / scraping.uber_eats.chains
   chains:
     - McDonald's
-    - Burger King
+    - Starbucks
   rappi:
     # Volcar HTML + PNG + .meta.json por paso (ver data/debug/rappi_pages/). Activar también con --rappi-dump-pages.
     debug_page_dumps: false
@@ -43,6 +44,11 @@ scraping:
   uber_eats:
     # Misma idea que rappi.between_chains_seconds (antes solo había delay global entre cadenas).
     between_chains_seconds: 8
+  didi_food:
+    between_chains_seconds: 8
+    # Opcional: chains propias; si no, se usa scraping.chains
+    # null / 0 = extraer hasta tope interno (scroll + dl.item-card)
+    menu_items_limit: null
 
 metrics:
   collect:

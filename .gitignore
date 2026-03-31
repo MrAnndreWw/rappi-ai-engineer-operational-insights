@@ -194,8 +194,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# Sesión Playwright (tokens / PII); generar con login manual o copiar desde auth.json.example
+# Sesión Playwright (tokens / PII); generar con login manual o copiar desde *.example
 config/auth.json
+config/auth_didi.json
 
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
@@ -221,5 +222,4 @@ outputs/reports/*
 !outputs/reports/.gitkeep
 outputs/figures/*
 !outputs/figures/.gitkeep
-outputs/exports/*
-!outputs/exports/.gitkeep
+# outputs/exports: versionado (comparaciones JSON, insights, figuras del informe)

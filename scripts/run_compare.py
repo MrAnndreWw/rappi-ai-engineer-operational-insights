@@ -9,7 +9,7 @@ from competitive_intel.analysis.platform_comparison import run_comparison_export
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compara Rappi vs Uber Eats desde un scrape JSONL y escribe JSON en outputs/exports.",
+        description="Compara Rappi vs Uber Eats vs DiDi Food (ancla Rappi) desde un scrape JSONL y escribe JSON en outputs/exports.",
     )
     parser.add_argument(
         "--input",
@@ -21,7 +21,7 @@ def main() -> None:
         "--output",
         type=Path,
         default=None,
-        help="Ruta del .json de salida (por defecto: outputs/exports/rappi_uber_comparison_<UTC>.json).",
+        help="Ruta del .json de salida (por defecto: outputs/exports/rappi_uber_didi_comparison_<UTC>.json).",
     )
     parser.add_argument(
         "--similarity",

@@ -66,8 +66,55 @@ def test_build_comparison_payload_minimal(tmp_path: Path) -> None:
     assert len(payload["comparisons"]) == 1
     c0 = payload["comparisons"][0]
     assert c0["delivery_comparison"]["delta_time_minutes_uber_minus_rappi"] == 5
+    assert c0["delivery_comparison"]["didi_food"] is None
+    assert c0["rappi_vs_didi_food"] is None
+    assert c0["triple_matched_products"] == []
     assert len(c0["matched_products"]) == 1
     assert c0["matched_products"][0]["delta_uber_minus_rappi_mxn"] == 10.0
+
+
+def test_build_comparison_payload_with_didi(tmp_path: Path) -> None:
+    rows_data = [
+        {
+            "platform": "rappi",
+            "location_id": "z1",
+            "chain": "TestChain",
+            "status": "ok",
+            "delivery_fee_raw": "Gratis",
+            "delivery_eta_raw": "10 min",
+            "products_sample": [{"name": "Item A", "price_raw": "$ 100.00", "price": 100.0}],
+        },
+        {
+            "platform": "uber_eats",
+            "location_id": "z1",
+            "chain": "TestChain",
+            "status": "ok",
+            "store_delivery_fee": "MXN0",
+            "store_delivery_time": "15 min",
+            "menu_items": [{"name": "Item A", "price_raw": "$110.00"}],
+        },
+        {
+            "platform": "didi_food",
+            "location_id": "z1",
+            "chain": "TestChain",
+            "status": "ok",
+            "menu_items": [{"name": "Item A", "price_raw": "MX$105.00"}],
+        },
+    ]
+    from competitive_intel.analysis.platform_comparison import load_scrape_jsonl
+
+    jl = tmp_path / "t.jsonl"
+    jl.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows_data), encoding="utf-8")
+    payload = build_comparison_payload(load_scrape_jsonl(jl))
+    assert len(payload["comparisons"]) == 1
+    c0 = payload["comparisons"][0]
+    assert "rappi" in c0["platforms_present"] and "didi_food" in c0["platforms_present"]
+    assert c0["rappi_vs_didi_food"] is not None
+    assert len(c0["rappi_vs_didi_food"]["matched_products"]) == 1
+    assert c0["rappi_vs_didi_food"]["matched_products"][0]["delta_didi_food_minus_rappi_mxn"] == 5.0
+    assert len(c0["triple_matched_products"]) == 1
+    assert c0["triple_matched_products"][0]["delta_uber_minus_rappi_mxn"] == 10.0
+    assert c0["triple_matched_products"][0]["delta_didi_food_minus_rappi_mxn"] == 5.0
 
 
 def test_run_comparison_export_writes_file(tmp_path: Path) -> None:

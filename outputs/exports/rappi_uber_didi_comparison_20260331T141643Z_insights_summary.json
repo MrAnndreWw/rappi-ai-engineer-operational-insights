@@ -1,0 +1,583 @@
+{
+  "generated_at_insights": "2026-03-31T14:52:41.603840+00:00",
+  "source_export": "C:\\Users\\andre\\Documents\\PruebaRappi\\rappi-ai-engineer-operational-insights\\outputs\\exports\\rappi_uber_didi_comparison_20260331T141643Z.json",
+  "source_metadata": {
+    "generated_at": "2026-03-31T14:40:13.527799+00:00",
+    "similarity_threshold": 0.9,
+    "comparison_scope": "rappi_anchored_multi_platform",
+    "platforms": [
+      "rappi",
+      "uber_eats",
+      "didi_food"
+    ],
+    "n_comparison_blocks": 10
+  },
+  "comparative_analysis": {
+    "price_positioning": {
+      "uber_eats": {
+        "global_mean_delta_mxn_uber_minus_rappi": 2.379016189290162,
+        "global_median_delta_mxn": 0.0,
+        "n_matched_price_pairs": 803,
+        "interpretacion": "En promedio Uber Eats cobra más por ítem matched que Rappi (delta ≈ +2.38 MXN a favor de Rappi)."
+      },
+      "didi_food": {
+        "global_mean_delta_mxn_didi_minus_rappi": -22.4925,
+        "global_median_delta_mxn": -33.6,
+        "n_matched_price_pairs": 40,
+        "interpretacion": "En promedio DiDi Food cobra menos por ítem matched que Rappi (delta ≈ -22.49 MXN; Rappi más caro)."
+      }
+    },
+    "operational_delivery": {
+      "notas": "Tiempos son los capturados en tienda (ETA declarada en UI), no medición real.",
+      "por_bloque": [
+        {
+          "location_id": "cdmx_01",
+          "chain": "McDonald's",
+          "delta_time_minutes_uber_minus_rappi": -2.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 12.0,
+          "uber_time_min": 10.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_01",
+          "chain": "Starbucks",
+          "delta_time_minutes_uber_minus_rappi": -4.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 14.0,
+          "uber_time_min": 10.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_02",
+          "chain": "McDonald's",
+          "delta_time_minutes_uber_minus_rappi": -9.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 24.0,
+          "uber_time_min": 15.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_02",
+          "chain": "Starbucks",
+          "delta_time_minutes_uber_minus_rappi": -2.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 12.0,
+          "uber_time_min": 10.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_03",
+          "chain": "McDonald's",
+          "delta_time_minutes_uber_minus_rappi": -13.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 25.0,
+          "uber_time_min": 12.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_03",
+          "chain": "Starbucks",
+          "delta_time_minutes_uber_minus_rappi": -3.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 13.0,
+          "uber_time_min": 10.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_04",
+          "chain": "McDonald's",
+          "delta_time_minutes_uber_minus_rappi": -1.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 14.0,
+          "uber_time_min": 13.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_04",
+          "chain": "Starbucks",
+          "delta_time_minutes_uber_minus_rappi": -13.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 25.0,
+          "uber_time_min": 12.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_05",
+          "chain": "McDonald's",
+          "delta_time_minutes_uber_minus_rappi": -3.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 13.0,
+          "uber_time_min": 10.0,
+          "didi_time_min": null
+        },
+        {
+          "location_id": "cdmx_05",
+          "chain": "Starbucks",
+          "delta_time_minutes_uber_minus_rappi": -2.0,
+          "delta_time_minutes_didi_minus_rappi": null,
+          "rappi_time_min": 12.0,
+          "uber_time_min": 10.0,
+          "didi_time_min": null
+        }
+      ],
+      "resumen": {
+        "count_blocks_con_delta_uber": 10,
+        "mean_delta_time_uber_minus_rappi": -5.2,
+        "count_blocks_con_delta_didi": 0,
+        "mean_delta_time_didi_minus_rappi": null
+      }
+    },
+    "fees": {
+      "delivery_fee": {
+        "por_bloque": [
+          {
+            "location_id": "cdmx_01",
+            "chain": "McDonald's",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_01",
+            "chain": "Starbucks",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_02",
+            "chain": "McDonald's",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_02",
+            "chain": "Starbucks",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_03",
+            "chain": "McDonald's",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_03",
+            "chain": "Starbucks",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_04",
+            "chain": "McDonald's",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_04",
+            "chain": "Starbucks",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_05",
+            "chain": "McDonald's",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          },
+          {
+            "location_id": "cdmx_05",
+            "chain": "Starbucks",
+            "fee_mxn_rappi": 0.0,
+            "fee_mxn_uber": 0.0,
+            "fee_mxn_didi": null,
+            "delta_fee_uber_minus_rappi": 0.0,
+            "delta_fee_didi_minus_rappi": null
+          }
+        ]
+      },
+      "service_fee": {
+        "disponibilidad_datos": "no_capturado_en_scrape_actual",
+        "detail": "El export de comparación no incluye service fee explícito; solo fee/tiempo de entrega en delivery_comparison."
+      }
+    },
+    "promotional_signals": {
+      "metodo": "Heurística sobre price_raw y nombres de producto (oferta, %, multi‑buy, gratis).",
+      "conteos_por_tipo": {
+        "rappi": {
+          "gratis_en_precio": 16,
+          "multibuy": 1
+        },
+        "uber_eats": {
+          "multibuy": 8,
+          "gratis_en_precio": 25,
+          "oferta_gasto_minimo": 2
+        },
+        "didi_food": {}
+      },
+      "ejemplos_oferta_texto_en_fee_o_precio": []
+    },
+    "geographic_variability": {
+      "by_location": [
+        {
+          "location_id": "cdmx_01",
+          "n_chains": 2,
+          "mean_delta_uber_minus_rappi_mxn": 3.026086956521739,
+          "median_delta_uber_minus_rappi_mxn": 0.0,
+          "clasificacion_precio_uber_agrupada": "rappi_mas_barato"
+        },
+        {
+          "location_id": "cdmx_02",
+          "n_chains": 2,
+          "mean_delta_uber_minus_rappi_mxn": 2.9422535211267604,
+          "median_delta_uber_minus_rappi_mxn": 0.0,
+          "clasificacion_precio_uber_agrupada": "rappi_mas_barato"
+        },
+        {
+          "location_id": "cdmx_03",
+          "n_chains": 2,
+          "mean_delta_uber_minus_rappi_mxn": -3.61625,
+          "median_delta_uber_minus_rappi_mxn": -5.0,
+          "clasificacion_precio_uber_agrupada": "rappi_mas_caro"
+        },
+        {
+          "location_id": "cdmx_04",
+          "n_chains": 2,
+          "mean_delta_uber_minus_rappi_mxn": 1.146220930232558,
+          "median_delta_uber_minus_rappi_mxn": 0.0,
+          "clasificacion_precio_uber_agrupada": "rappi_mas_barato"
+        },
+        {
+          "location_id": "cdmx_05",
+          "n_chains": 2,
+          "mean_delta_uber_minus_rappi_mxn": 6.338108108108108,
+          "median_delta_uber_minus_rappi_mxn": 5.0,
+          "clasificacion_precio_uber_agrupada": "rappi_mas_barato"
+        }
+      ],
+      "variability_summary": {
+        "across_locations": {
+          "mean_delta_uber_by_location": [
+            3.026086956521739,
+            2.9422535211267604,
+            -3.61625,
+            1.146220930232558,
+            6.338108108108108
+          ],
+          "stdev_mean_delta_mxn": 3.6409
+        }
+      }
+    }
+  },
+  "detalle_por_ubicacion_y_cadena": [
+    {
+      "location_id": "cdmx_01",
+      "chain": "McDonald's",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 1.8863636363636365,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 44,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": -2.5,
+        "n_matched_products": 4,
+        "clasificacion_rappi": "rappi_mas_caro"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -2.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 12.0,
+        "uber_time_min": 10.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_01",
+      "chain": "Starbucks",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 3.3842857142857143,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 140,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": null,
+        "n_matched_products": 0,
+        "clasificacion_rappi": "sin_datos"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -4.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 14.0,
+        "uber_time_min": 10.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_02",
+      "chain": "McDonald's",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 0.0,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 7,
+        "clasificacion_rappi": "similar"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": null,
+        "n_matched_products": 0,
+        "clasificacion_rappi": "sin_datos"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -9.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 24.0,
+        "uber_time_min": 15.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_02",
+      "chain": "Starbucks",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 3.0948148148148147,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 135,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": -31.8,
+        "n_matched_products": 10,
+        "clasificacion_rappi": "rappi_mas_caro"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -2.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 12.0,
+        "uber_time_min": 10.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_03",
+      "chain": "McDonald's",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 2.4285714285714284,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 14,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": null,
+        "n_matched_products": 0,
+        "clasificacion_rappi": "sin_datos"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -13.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 25.0,
+        "uber_time_min": 12.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_03",
+      "chain": "Starbucks",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": -4.414622641509434,
+        "median_delta_mxn": -5.0,
+        "n_matched_products": 106,
+        "clasificacion_rappi": "rappi_mas_caro"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": -34.2125,
+        "n_matched_products": 8,
+        "clasificacion_rappi": "rappi_mas_caro"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -3.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 13.0,
+        "uber_time_min": 10.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_04",
+      "chain": "McDonald's",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": -0.43478260869565216,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 46,
+        "clasificacion_rappi": "similar"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": 2.5,
+        "n_matched_products": 4,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -1.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 14.0,
+        "uber_time_min": 13.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_04",
+      "chain": "Starbucks",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 1.7234126984126985,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 126,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": -31.8,
+        "n_matched_products": 10,
+        "clasificacion_rappi": "rappi_mas_caro"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -13.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 25.0,
+        "uber_time_min": 12.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_05",
+      "chain": "McDonald's",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": -0.45454545454545453,
+        "median_delta_mxn": 0.0,
+        "n_matched_products": 44,
+        "clasificacion_rappi": "similar"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": 2.5,
+        "n_matched_products": 4,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -3.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 13.0,
+        "uber_time_min": 10.0,
+        "didi_time_min": null
+      }
+    },
+    {
+      "location_id": "cdmx_05",
+      "chain": "Starbucks",
+      "price_vs_uber": {
+        "mean_delta_mxn_uber_minus_rappi": 8.457801418439717,
+        "median_delta_mxn": 5.0,
+        "n_matched_products": 141,
+        "clasificacion_rappi": "rappi_mas_barato"
+      },
+      "price_vs_didi": {
+        "mean_delta_mxn_didi_minus_rappi": null,
+        "n_matched_products": 0,
+        "clasificacion_rappi": "sin_datos"
+      },
+      "delivery": {
+        "delta_time_uber_minus_rappi_min": -2.0,
+        "delta_time_didi_minus_rappi_min": null,
+        "rappi_fee_mxn": 0.0,
+        "uber_fee_mxn": 0.0,
+        "didi_fee_mxn": null,
+        "rappi_time_min": 12.0,
+        "uber_time_min": 10.0,
+        "didi_time_min": null
+      }
+    }
+  ],
+  "top_5_insights_accionables": [
+    {
+      "finding": "Rappi está en promedio 2.4 MXN más barato que Uber Eats en ítems matched.",
+      "impacto": "Ventaja competitiva en ticket de menú visible; útil para mensajería y growth en zonas cubiertas.",
+      "recomendacion": "Destacar precio en campañas locales y proteger SKUs donde la ventaja es mayor; monitorear respuesta de Uber."
+    },
+    {
+      "finding": "La zona «cdmx_03» concentra la mayor desventaja de precio vs Uber (delta medio uber−rappi ≈ -3.62 MXN: Uber más barato).",
+      "impacto": "La competitividad no es homogénea: hay zonas donde el posicionamiento relativo es más débil.",
+      "recomendacion": "Profundizar pricing y promos en «cdmx_03» (y cadenas asociadas en el bloque); considerar fee o incentivos específicos de zona."
+    },
+    {
+      "finding": "Uber declara en promedio ~5 min menos de entrega que Rappi en los bloques donde ambos tienen ETA (10 casos).",
+      "impacto": "Desventaja operativa percibida en velocidad; afecta elección de plataforma en horarios críticos.",
+      "recomendacion": "Revisar SLAs mostrados (supply, radio, promesas UI) y comunicación de tiempo; alinear expectativa o mejorar cobertura en esas ubicaciones."
+    },
+    {
+      "finding": "DiDi Food vs Rappi (ítems matched): delta medio didi−rappi ≈ -22.49 MXN.",
+      "impacto": "Tercer jugador con dinámica de precio independiente; relevante donde DiDi tiene cobertura fuerte.",
+      "recomendacion": "Mantener scrape periódico DiDi y revisar triple-match para detectar desviaciones sistémicas."
+    },
+    {
+      "finding": "Más señales heurísticas de promos/multi‑buy en Uber (10) que en Rappi (1) en textos analizados.",
+      "impacto": "Percepción de mayor agresividad promocional del competidor en la interfaz.",
+      "recomendacion": "Auditar paridad de ofertas con marca en ubicaciones clave y visibilidad en listing."
+    }
+  ],
+  "visualizations": [
+    "outputs\\exports\\rappi_uber_didi_comparison_20260331T141643Z_fig1_delta_precio_por_zona.png",
+    "outputs\\exports\\rappi_uber_didi_comparison_20260331T141643Z_fig2_heatmap_precio_zona_cadena.png",
+    "outputs\\exports\\rappi_uber_didi_comparison_20260331T141643Z_fig3_fees_entrega_por_bloque.png"
+  ]
+}

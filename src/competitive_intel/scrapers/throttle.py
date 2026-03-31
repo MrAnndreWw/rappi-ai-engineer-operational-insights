@@ -47,3 +47,11 @@ def sleep_between_uber_eats_chains(settings: dict[str, Any]) -> None:
     extra = float(cfg.get("between_chains_seconds", 5))
     jitter = float(s.get("delay_jitter_seconds", 1))
     time.sleep(max(0, extra + random.uniform(0, jitter)))
+
+
+def sleep_between_didi_chains(settings: dict[str, Any]) -> None:
+    s = settings.get("scraping") or {}
+    cfg = s.get("didi_food") or {}
+    extra = float(cfg.get("between_chains_seconds", 5))
+    jitter = float(s.get("delay_jitter_seconds", 1))
+    time.sleep(max(0, extra + random.uniform(0, jitter)))
