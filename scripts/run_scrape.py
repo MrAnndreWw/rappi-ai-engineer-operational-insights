@@ -17,7 +17,7 @@ def main() -> None:
         "-v",
         "--verbose",
         action="store_true",
-        help="Log DEBUG (más detalle además de tiempos INFO)",
+        help="Log DEBUG (timings, Playwright, sesión, detalle por cadena)",
     )
     parser.add_argument(
         "--rappi-dump-pages",
