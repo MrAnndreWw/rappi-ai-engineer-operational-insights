@@ -2,7 +2,7 @@
 
 ## Flujo de datos
 
-1. **Configuración** (`config/*.yaml`, `.env`, `config/auth.json` opcional para Rappi): plataformas activas, ubicaciones, productos de referencia, límites de cortesía.
+1. **Configuración** (`config/*.yaml`, `.env`, `config/auth.json` opcional para Rappi, `config/auth_didi.json` opcional para DiDi Food): plataformas activas, ubicaciones, productos de referencia, límites de cortesía.
 2. **Scrape** (`scrapers/flows.py`): un módulo por responsabilidad; `FLOW_REGISTRY` mapea `rappi` / `uber_eats` / `didi_food` a funciones que devuelven filas JSONL por ubicación (Playwright).
 3. **Extracción**: hoy vive junto a los flujos en `flows.py` (selectores, scroll, `page.evaluate`); si crece, se puede partir a `extract/` sin cambiar el contrato del JSONL.
 4. **Transformación** (`transform/`): mapeo a esquemas canónicos (`models/schemas.py`).
