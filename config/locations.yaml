@@ -1,0 +1,11 @@
+locations:
+  - id: cdmx_01
+    label: "Reforma Centro"
+    address_line: "Paseo de la Reforma 222"
+    zone_type: commercial_high
+
+  - id: cdmx_02
+    label: "Polanco"
+    address_line: "Av Presidente Masaryk 111"
+    zone_type: residential_high
+    
